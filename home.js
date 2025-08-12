@@ -2,7 +2,6 @@
 const navLinks = document.querySelectorAll('.nav-link');
 const pages = document.querySelectorAll('.page');
 const mobileToggle = document.querySelector('.mobile-toggle');
-const navMenu = document.querySelector('.nav-menu');
 const navbar = document.querySelector('.navbar');
 const navbarTrigger = document.querySelector('.navbar-trigger');
 
@@ -164,124 +163,6 @@ async function initHome() {
 
    const vertexShaderModule = device.createShaderModule({ code: fullscreenVertexShader });
    const fragmentShaderModule = device.createShaderModule({ code: homeFragmentShader });
-
-   const pipeline = device.createRenderPipeline({
-      layout: 'auto',
-      vertex: {
-         module: vertexShaderModule,
-         entryPoint: 'vs_main',
-      },
-      fragment: {
-         module: fragmentShaderModule,
-         entryPoint: 'fs_main',
-         targets: [{ format: canvasFormat }],
-      },
-      primitive: {
-         topology: 'triangle-list',
-      },
-   });
-
-   function render() {
-      const commandEncoder = device.createCommandEncoder();
-      const renderPassDescriptor = {
-         colorAttachments: [{
-            view: context.getCurrentTexture().createView(),
-            clearValue: { r: 0, g: 0, b: 0, a: 1.0 },
-            loadOp: 'clear',
-            storeOp: 'store',
-         }],
-      };
-
-      const renderPass = commandEncoder.beginRenderPass(renderPassDescriptor);
-      renderPass.setPipeline(pipeline);
-      renderPass.draw(6);
-      renderPass.end();
-
-      device.queue.submit([commandEncoder.finish()]);
-   }
-
-   render();
-}
-
-async function initPhysarum() {
-   const canvas = document.getElementById('physarum-canvas');
-   canvas.width = window.innerWidth;
-   canvas.height = window.innerHeight;
-
-   // Placeholder for physarum - just black screen for now
-   const webgpu = await initWebGPU('physarum-canvas');
-   if (!webgpu) return;
-
-   const { device, context } = webgpu;
-
-   function render() {
-      const commandEncoder = device.createCommandEncoder();
-      const renderPassDescriptor = {
-         colorAttachments: [{
-            view: context.getCurrentTexture().createView(),
-            clearValue: { r: 0, g: 0, b: 0, a: 1.0 },
-            loadOp: 'clear',
-            storeOp: 'store',
-         }],
-      };
-
-      const renderPass = commandEncoder.beginRenderPass(renderPassDescriptor);
-      renderPass.end();
-
-      device.queue.submit([commandEncoder.finish()]);
-   }
-
-   render();
-}
-
-async function initWaves() {
-   const canvas = document.getElementById('waves-canvas');
-   canvas.width = window.innerWidth;
-   canvas.height = window.innerHeight;
-
-   const webgpu = await initWebGPU('waves-canvas');
-   if (!webgpu) return;
-
-   const { device, context, canvasFormat } = webgpu;
-
-   const waveFragmentShader = `
-       @fragment
-       fn fs_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
-           let resolution = vec2<f32>(f32(${window.innerWidth}), f32(${window.innerHeight}));
-           let uv = (fragCoord.xy - 0.5 * resolution) / resolution.y;
-           let time = 0.0; // Will be animated later
-           
-           let d = length(uv);
-           let wave = sin(d * 8.0 - time * 3.0) / (8.0 * d);
-           let intensity = abs(wave);
-           
-           let color = vec3<f32>(
-               0.2 + intensity * 0.8,
-               0.4 + intensity * 0.6,
-               0.8 + intensity * 0.2
-           );
-           
-           return vec4<f32>(color, 1.0);
-       }
-   `;
-
-   const fullscreenVertexShader = `
-       @vertex
-       fn vs_main(@builtin(vertex_index) vertexIndex: u32) -> @builtin(position) vec4<f32> {
-           var pos = array<vec2<f32>, 6>(
-               vec2<f32>(-1.0, -1.0),
-               vec2<f32>( 1.0, -1.0),
-               vec2<f32>(-1.0,  1.0),
-               vec2<f32>(-1.0,  1.0),
-               vec2<f32>( 1.0, -1.0),
-               vec2<f32>( 1.0,  1.0)
-           );
-           return vec4<f32>(pos[vertexIndex], 0.0, 1.0);
-       }
-   `;
-
-   const vertexShaderModule = device.createShaderModule({ code: fullscreenVertexShader });
-   const fragmentShaderModule = device.createShaderModule({ code: waveFragmentShader });
 
    const pipeline = device.createRenderPipeline({
       layout: 'auto',
