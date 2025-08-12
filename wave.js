@@ -1,8 +1,8 @@
-function createWaveTextureData(width, height, radius) {
-   const _ = [0, 0, 0, 255];
-   const h = [255, 255, 255, 255];
+function createWaveArrayData(width, height, radius) {
+   const _ = 0.0;
+   const h = 1.0;
 
-   var textureData = Array(width * height).fill(h);
+   var arrayData = Array(width * height).fill(h);
 
    for (let i = -radius; i < radius; i++) {
       for (let j = -radius; j < radius; j++) {
@@ -11,41 +11,33 @@ function createWaveTextureData(width, height, radius) {
 
          let index = (i + Math.floor(height / 2)) * width + j + Math.floor(width / 2);
 
-         textureData[index] = _;
+         arrayData[index] = _;
       }
    }
 
-   return new Uint8Array(textureData.flat());
+   return new Float32Array(arrayData);
 }
 
-function initWaveTextures(device, textureData, width, height, canvasFormat) {
-   const waveTextureOld = device.createTexture({
-      size: [width, height],
-      format: canvasFormat,
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+function initWaveArrays(device, arrayData, width, height) {
+   const waveArrayOld = device.createBuffer({
+      size: width * height * 4,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
    });
 
-   const waveTextureCurrent = device.createTexture({
-      size: [width, height],
-      format: canvasFormat,
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+   const waveArrayCurrent = device.createBuffer({
+      size: width * height * 4,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
    });
 
-   const waveTextureNew = device.createTexture({
-      size: [width, height],
-      format: canvasFormat,
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+   const waveArrayNew = device.createBuffer({
+      size: width * height * 4,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
    });
 
-   for (let texture of [waveTextureOld, waveTextureCurrent, waveTextureNew]) {
-      device.queue.writeTexture(
-         { texture },
-         textureData,
-         { bytesPerRow: width * 4 },
-         { width: width, height: height },
-      );
+   for (let array of [waveArrayOld, waveArrayCurrent, waveArrayNew]) {
+      device.queue.writeBuffer(array, 0, arrayData);
    }
-   return { waveTextureOld, waveTextureCurrent, waveTextureNew };
+   return { waveArrayOld, waveArrayCurrent, waveArrayNew };
 }
 
 async function initWaves() {
@@ -59,38 +51,27 @@ async function initWaves() {
    const { device, context, canvasFormat } = webgpu;
 
    const waveFragmentShader = `
-      @group(0) @binding(0) var textureSampler: sampler;
-      @group(0) @binding(1) var waveTextureOld: texture_2d<f32>;
-      @group(0) @binding(2) var waveTextureCurrent: texture_2d<f32>;
-      @group(0) @binding(3) var waveTextureNew: texture_2d<f32>;
+      @group(0) @binding(0) var<storage, read_write> waveArrayOld: array<f32>;
+      @group(0) @binding(1) var<storage, read_write> waveArrayCurrent: array<f32>;
+      @group(0) @binding(2) var<storage, read_write> waveArrayNew: array<f32>;
 
       @fragment
       fn fs(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
          let resolution = vec2<f32>(f32(${window.innerWidth}), f32(${window.innerHeight}));
-         let uv = (fragCoord.xy - 0.5 * resolution) / resolution.y;
+         let stepX = 1/resolution.x;
+         let stepY = 1/resolution.y;
          let time = 0.0; // Will be animated later
 
-         var xy = vec2<f32>(fragCoord.x/resolution.x, fragCoord.y/resolution.y);
-         let xStep = 1/resolution.x;
-         let yStep = 1/resolution.y;
-
-         xy.x -= xStep;
-         let left = textureSample(waveTextureCurrent, textureSampler, xy);
-         xy.x += 2*xStep;
-         let right = textureSample(waveTextureCurrent, textureSampler, xy);
-         xy.x -= xStep;
-         xy.y += yStep;
-         let top = textureSample(waveTextureCurrent, textureSampler, xy);
-         xy.y -= 2*yStep;
-         let bot = textureSample(waveTextureCurrent, textureSampler, xy);
-         xy.y += yStep;
-         let oldWave = textureSample(waveTextureOld, textureSampler, xy);
-         var currentWave = textureSample(waveTextureCurrent, textureSampler, xy);
-         var newWave = textureSample(waveTextureNew, textureSampler, xy);
-         newWave = 2*currentWave - oldWave + 0.25*(left+right+top+bot-4*currentWave);
-
-         currentWave = newWave;
-         return newWave;
+         let oldWave = waveArrayOld[u32(fragCoord.y*resolution.x+fragCoord.x-resolution.x/2)];
+         let left = waveArrayCurrent[u32(fragCoord.y*resolution.x+fragCoord.x-stepX-resolution.x/2)];
+         let right = waveArrayCurrent[u32(fragCoord.y*resolution.x+fragCoord.x+stepX-resolution.x/2)];
+         let up = waveArrayCurrent[u32((fragCoord.y+stepY)*resolution.x+fragCoord.x-resolution.x/2)];
+         let down = waveArrayCurrent[u32((fragCoord.y-stepY)*resolution.x+fragCoord.x-resolution.x/2)];
+         let currentWave = waveArrayCurrent[u32(fragCoord.y*resolution.x+fragCoord.x-resolution.x/2)];
+         waveArrayNew[u32(fragCoord.y*resolution.x+fragCoord.x-resolution.x/2)] = 2 * currentWave - oldWave - 0.25 * ( left + right + up + down - 4 * currentWave);
+         let newWave = waveArrayNew[u32(fragCoord.y*resolution.x+fragCoord.x-resolution.x/2)];
+         waveArrayNew[u32(fragCoord.y*resolution.x+fragCoord.x-resolution.x/2)] = waveArrayNew[u32(fragCoord.y*resolution.x+fragCoord.x-resolution.x/2)] + 0.1;
+         return vec4<f32>(newWave, 0, 0, 1.0);
        }
    `;
 
@@ -131,18 +112,15 @@ async function initWaves() {
       },
    });
 
-   const waveTextureData = createWaveTextureData(canvas.width, canvas.height, 10);
-   const { waveTextureOld, waveTextureCurrent, waveTextureNew } = initWaveTextures(device, waveTextureData, canvas.width, canvas.height, canvasFormat);
-
-   const sampler = device.createSampler();
+   const waveArrayData = createWaveArrayData(canvas.width, canvas.height, 10);
+   const { waveArrayOld, waveArrayCurrent, waveArrayNew } = initWaveArrays(device, waveArrayData, canvas.width, canvas.height);
 
    const bindGroup = device.createBindGroup({
       layout: pipeline.getBindGroupLayout(0),
       entries: [
-         { binding: 0, resource: sampler },
-         { binding: 1, resource: waveTextureOld.createView() },
-         { binding: 2, resource: waveTextureCurrent.createView() },
-         { binding: 3, resource: waveTextureNew.createView() },
+         { binding: 0, resource: waveArrayOld },
+         { binding: 1, resource: waveArrayCurrent },
+         { binding: 2, resource: waveArrayNew },
       ],
    });
 
@@ -164,7 +142,9 @@ async function initWaves() {
       renderPass.end();
 
       device.queue.submit([commandEncoder.finish()]);
+
+      requestAnimationFrame(render);
    }
 
-   render();
+   requestAnimationFrame(render);
 }
