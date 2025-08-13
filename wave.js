@@ -50,6 +50,35 @@ async function initWaves() {
 
    const { device, context, canvasFormat } = webgpu;
 
+   const waveComputeShader = `
+      @group(0) @binding(0) var<storage, read_write> waveArrayOld: array<f32>;
+      @group(0) @binding(1) var<storage, read_write> waveArrayCurrent: array<f32>;
+      @group(0) @binding(2) var<storage, read_write> waveArrayNew: array<f32>;
+      
+      @compute @workgroup_size(8, 8)
+      fn cs(@builtin(global_invocation_id) global_id: vec3<u32>) {
+         let resolution = vec2<u32>(${window.innerWidth}, ${window.innerHeight});
+         let i = global_id.x;
+         let j = global_id.y;
+
+         let index = j*resolution.x + i;
+
+         if (i == 0 || i == resolution.x || j == 0 || j == resolution.y) {
+            waveArrayNew[u32(index)] = 0.0;
+         }
+
+         let left = waveArrayCurrent[index-1];
+         let right = waveArrayCurrent[index+1];
+         let up = waveArrayCurrent[(index - resolution.x)];
+         let down = waveArrayCurrent[(index + resolution.x)];
+         let center = waveArrayCurrent[index];
+         let old = waveArrayOld[index];
+         waveArrayNew[index] = 0.999 * (2f * center - old + 0.25 * ( left + right + up + down - 4 * center ));
+
+         return;
+      }
+   `
+
    const waveFragmentShader = `
       @group(0) @binding(0) var<storage, read_write> waveArrayOld: array<f32>;
       @group(0) @binding(1) var<storage, read_write> waveArrayCurrent: array<f32>;
@@ -58,20 +87,17 @@ async function initWaves() {
       @fragment
       fn fs(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
          let resolution = vec2<f32>(f32(${window.innerWidth}), f32(${window.innerHeight}));
+         let i = fragCoord.x/resolution.x;
          let stepX = 1/resolution.x;
          let stepY = 1/resolution.y;
-         let time = 0.0; // Will be animated later
 
-         let oldWave = waveArrayOld[u32(fragCoord.y*resolution.x+fragCoord.x-resolution.x/2)];
-         let left = waveArrayCurrent[u32(fragCoord.y*resolution.x+fragCoord.x-stepX-resolution.x/2)];
-         let right = waveArrayCurrent[u32(fragCoord.y*resolution.x+fragCoord.x+stepX-resolution.x/2)];
-         let up = waveArrayCurrent[u32((fragCoord.y+stepY)*resolution.x+fragCoord.x-resolution.x/2)];
-         let down = waveArrayCurrent[u32((fragCoord.y-stepY)*resolution.x+fragCoord.x-resolution.x/2)];
-         let currentWave = waveArrayCurrent[u32(fragCoord.y*resolution.x+fragCoord.x-resolution.x/2)];
-         waveArrayNew[u32(fragCoord.y*resolution.x+fragCoord.x-resolution.x/2)] = 2 * currentWave - oldWave - 0.25 * ( left + right + up + down - 4 * currentWave);
-         let newWave = waveArrayNew[u32(fragCoord.y*resolution.x+fragCoord.x-resolution.x/2)];
-         waveArrayNew[u32(fragCoord.y*resolution.x+fragCoord.x-resolution.x/2)] = waveArrayNew[u32(fragCoord.y*resolution.x+fragCoord.x-resolution.x/2)] + 0.1;
-         return vec4<f32>(newWave, 0, 0, 1.0);
+         let index = fragCoord.y*resolution.x+fragCoord.x;
+ 
+         waveArrayOld[u32(index)] = waveArrayCurrent[u32(index)];
+         waveArrayCurrent[u32(index)] = waveArrayNew[u32(index)];
+         let positive = max(sign(waveArrayCurrent[u32(index)]), 0) * waveArrayCurrent[u32(index)];
+         let negative = max(sign(-waveArrayCurrent[u32(index)]), 0) * waveArrayCurrent[u32(index)];
+         return vec4<f32>(negative, positive, 1.0, 1.0);
        }
    `;
 
@@ -90,12 +116,19 @@ async function initWaves() {
        }
    `;
 
-   const vertexShaderModule = device.createShaderModule({
-      label: 'vertexShader', code: fullscreenVertexShader
-   });
+   const computeShaderModule = device.createShaderModule({ label: 'computeShader', code: waveComputeShader });
+   const vertexShaderModule = device.createShaderModule({ label: 'vertexShader', code: fullscreenVertexShader });
    const fragmentShaderModule = device.createShaderModule({ label: 'fragmentShader', code: waveFragmentShader });
 
-   const pipeline = device.createRenderPipeline({
+   const computePipeline = device.createComputePipeline({
+      layout: 'auto',
+      compute: {
+         module: computeShaderModule,
+         entryPoint: 'cs',
+      },
+   });
+
+   const renderPipeline = device.createRenderPipeline({
       label: 'WaveRenderPipeline',
       layout: 'auto',
       vertex: {
@@ -115,8 +148,17 @@ async function initWaves() {
    const waveArrayData = createWaveArrayData(canvas.width, canvas.height, 10);
    const { waveArrayOld, waveArrayCurrent, waveArrayNew } = initWaveArrays(device, waveArrayData, canvas.width, canvas.height);
 
-   const bindGroup = device.createBindGroup({
-      layout: pipeline.getBindGroupLayout(0),
+   const computeBindGroup = device.createBindGroup({
+      layout: computePipeline.getBindGroupLayout(0),
+      entries: [
+         { binding: 0, resource: waveArrayOld },
+         { binding: 1, resource: waveArrayCurrent },
+         { binding: 2, resource: waveArrayNew },
+      ],
+   });
+
+   const renderBindGroup = device.createBindGroup({
+      layout: renderPipeline.getBindGroupLayout(0),
       entries: [
          { binding: 0, resource: waveArrayOld },
          { binding: 1, resource: waveArrayCurrent },
@@ -126,6 +168,13 @@ async function initWaves() {
 
    function render() {
       const commandEncoder = device.createCommandEncoder();
+
+      const computePass = commandEncoder.beginComputePass();
+      computePass.setPipeline(computePipeline);
+      computePass.setBindGroup(0, computeBindGroup);
+      computePass.dispatchWorkgroups(Math.ceil(canvas.width / 8), Math.ceil(canvas.height / 8));
+      computePass.end();
+
       const renderPassDescriptor = {
          colorAttachments: [{
             view: context.getCurrentTexture().createView(),
@@ -136,8 +185,8 @@ async function initWaves() {
       };
 
       const renderPass = commandEncoder.beginRenderPass(renderPassDescriptor);
-      renderPass.setPipeline(pipeline);
-      renderPass.setBindGroup(0, bindGroup);
+      renderPass.setPipeline(renderPipeline);
+      renderPass.setBindGroup(0, renderBindGroup);
       renderPass.draw(6);
       renderPass.end();
 
