@@ -1,6 +1,5 @@
-function createWaveArrayData(width, height, radius) {
+function createWaveArrayData(width, height, radius, val) {
    const _ = 0.0;
-   const h = 1.0;
 
    var arrayData = Array(width * height).fill(_);
 
@@ -11,7 +10,7 @@ function createWaveArrayData(width, height, radius) {
 
          let index = (i + Math.floor(height / 2)) * width + j + width;
 
-         arrayData[index] = h;
+         arrayData[index] = val;
       }
    }
 
@@ -73,7 +72,7 @@ async function initWaves() {
          let down = waveArrayCurrent[(index + resolution.x)];
          let center = waveArrayCurrent[index];
          let old = waveArrayOld[index];
-         waveArrayNew[index] = (2f * center - old + 0.25 * ( left + right + up + down - 4 * center ));
+         waveArrayNew[index] = 0.99 * (2f * center - old + 0.25 * ( left + right + up + down - 4 * center ));
 
          return;
       }
@@ -148,7 +147,7 @@ async function initWaves() {
       },
    });
 
-   const waveArrayData = createWaveArrayData(canvas.width, canvas.height, 10);
+   const waveArrayData = createWaveArrayData(canvas.width, canvas.height, 8, 2.0);
    const { waveArrayOld, waveArrayCurrent, waveArrayNew } = initWaveArrays(device, waveArrayData, canvas.width, canvas.height);
 
    const computeBindGroup = device.createBindGroup({
@@ -198,13 +197,20 @@ async function initWaves() {
       requestAnimationFrame(render);
    }
 
-   document.addEventListener("click", (event) => {
-      index = event.clientY * canvas.width + event.clientX - Math.floor(canvas.width / 2);
-      const newWave = new Float32Array(1);
-      newWave[0] = 1.0;
-      device.queue.writeBuffer(waveArrayCurrent, index * 4, newWave);
-      device.queue.writeBuffer(waveArrayOld, index * 4, newWave);
+   var draw = false;
+
+   canvas.addEventListener("mousemove", (event) => {
+      if (draw) {
+         index = event.clientY * canvas.width + event.clientX - Math.floor(canvas.width / 2);
+         const newWave = new Float32Array(1);
+         newWave[0] = 1.0;
+         device.queue.writeBuffer(waveArrayCurrent, index * 4, newWave);
+         // device.queue.writeBuffer(waveArrayOld, index * 4, newWave);
+      }
+      move += 1;
    })
+
+   canvas.addEventListener("mousedown", (_) => { draw = !draw; });
 
    requestAnimationFrame(render);
 }
