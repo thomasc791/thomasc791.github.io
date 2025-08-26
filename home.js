@@ -202,10 +202,18 @@ async function initHome() {
    render();
 }
 
+async function showMenuBar() {
+   navbar.classList.add('show');
+   setTimeout(() => {
+      navbar.classList.remove('show');
+   }, 1000);
+}
+
 // Initialize on load
 window.onload = function() {
    checkWebGPUSupport();
    initHome(); // Auto-start home page
+   showMenuBar();
 };
 
 // Handle canvas resizing

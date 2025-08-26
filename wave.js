@@ -2,16 +2,16 @@ function createWaveArrayData(width, height, radius) {
    const _ = 0.0;
    const h = 1.0;
 
-   var arrayData = Array(width * height).fill(h);
+   var arrayData = Array(width * height).fill(_);
 
    for (let i = -radius; i < radius; i++) {
       for (let j = -radius; j < radius; j++) {
          if (i * i + j * j > radius * radius)
             continue;
 
-         let index = (i + Math.floor(height / 2)) * width + j + Math.floor(width / 2);
+         let index = (i + Math.floor(height / 2)) * width + j + width;
 
-         arrayData[index] = _;
+         arrayData[index] = h;
       }
    }
 
@@ -55,7 +55,7 @@ async function initWaves() {
       @group(0) @binding(1) var<storage, read_write> waveArrayCurrent: array<f32>;
       @group(0) @binding(2) var<storage, read_write> waveArrayNew: array<f32>;
       
-      @compute @workgroup_size(8, 8)
+      @compute @workgroup_size(16, 4)
       fn cs(@builtin(global_invocation_id) global_id: vec3<u32>) {
          let resolution = vec2<u32>(${window.innerWidth}, ${window.innerHeight});
          let i = global_id.x;
@@ -73,7 +73,7 @@ async function initWaves() {
          let down = waveArrayCurrent[(index + resolution.x)];
          let center = waveArrayCurrent[index];
          let old = waveArrayOld[index];
-         waveArrayNew[index] = 0.999 * (2f * center - old + 0.25 * ( left + right + up + down - 4 * center ));
+         waveArrayNew[index] = (2f * center - old + 0.25 * ( left + right + up + down - 4 * center ));
 
          return;
       }
@@ -87,17 +87,20 @@ async function initWaves() {
       @fragment
       fn fs(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
          let resolution = vec2<f32>(f32(${window.innerWidth}), f32(${window.innerHeight}));
-         let i = fragCoord.x/resolution.x;
          let stepX = 1/resolution.x;
          let stepY = 1/resolution.y;
 
          let index = fragCoord.y*resolution.x+fragCoord.x;
+         let i = u32(index);
  
-         waveArrayOld[u32(index)] = waveArrayCurrent[u32(index)];
-         waveArrayCurrent[u32(index)] = waveArrayNew[u32(index)];
-         let positive = max(sign(waveArrayCurrent[u32(index)]), 0) * waveArrayCurrent[u32(index)];
-         let negative = max(sign(-waveArrayCurrent[u32(index)]), 0) * waveArrayCurrent[u32(index)];
-         return vec4<f32>(negative, positive, 1.0, 1.0);
+         waveArrayOld[i] = waveArrayCurrent[i];
+         waveArrayCurrent[i] = waveArrayNew[i];
+         let current = waveArrayCurrent[i];
+         let old = waveArrayOld[i];
+         let positive = max(sign(current), 0) * current;
+         let negative = max(sign(-current), 0) * -1*current;
+         return 10*positive*vec4<f32>(0.3, 0.3, 1.0, 1.0) + 10*negative*vec4<f32>(1.0, 0.3, 0.3, 1.0);
+         // return vec4<f32>(fragCoord.y/resolution.y, 0.0, 0.0, 1.0);
        }
    `;
 
@@ -172,7 +175,7 @@ async function initWaves() {
       const computePass = commandEncoder.beginComputePass();
       computePass.setPipeline(computePipeline);
       computePass.setBindGroup(0, computeBindGroup);
-      computePass.dispatchWorkgroups(Math.ceil(canvas.width / 8), Math.ceil(canvas.height / 8));
+      computePass.dispatchWorkgroups(Math.ceil(canvas.width / 16), Math.ceil(canvas.height / 4));
       computePass.end();
 
       const renderPassDescriptor = {
@@ -194,6 +197,14 @@ async function initWaves() {
 
       requestAnimationFrame(render);
    }
+
+   document.addEventListener("click", (event) => {
+      index = event.clientY * canvas.width + event.clientX - Math.floor(canvas.width / 2);
+      const newWave = new Float32Array(1);
+      newWave[0] = 1.0;
+      device.queue.writeBuffer(waveArrayCurrent, index * 4, newWave);
+      device.queue.writeBuffer(waveArrayOld, index * 4, newWave);
+   })
 
    requestAnimationFrame(render);
 }
