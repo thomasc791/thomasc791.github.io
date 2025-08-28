@@ -1,0 +1,86 @@
+import { HomeSimulation } from './modules/home';
+import { WaveSimulation } from './modules/waves';
+import { PhysarumSimulation } from './modules/physarum';
+
+class PortfolioApp {
+   private currentSimulation: HomeSimulation | WaveSimulation | PhysarumSimulation | null = null;
+   private navLinks: NodeListOf<HTMLElement>;
+   private pages: NodeListOf<HTMLElement>;
+   private navbar: HTMLElement | null;
+
+   constructor() {
+      this.navLinks = document.querySelectorAll('.nav-link');
+      this.pages = document.querySelectorAll('.page');
+      this.navbar = document.querySelector('.navbar');
+
+      this.initNavigation();
+   }
+
+   private initNavigation(): void {
+      this.navLinks.forEach(link => {
+         link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const targetPage = link.getAttribute('data-page');
+            console.log(targetPage);
+            if (targetPage) {
+               this.navigateToPage(targetPage);
+            }
+         });
+      });
+   }
+
+   private async navigateToPage(targetPage: string): Promise<void> {
+      // Clean up current simulation
+      if (this.currentSimulation && 'destroy' in this.currentSimulation) {
+         this.currentSimulation.destroy();
+      }
+
+      // Update navigation state
+      this.updateNavigation(targetPage);
+
+      // Initialize new simulation
+      await this.initSimulation(targetPage);
+   }
+
+   private updateNavigation(targetPage: string): void {
+      // Update active nav link
+      this.navLinks.forEach(l => l.classList.remove('active'));
+      document.querySelector(`[data-page="${targetPage}"]`)?.classList.add('active');
+
+      // Show target page
+      this.pages.forEach(p => p.classList.remove('active'));
+      document.getElementById(targetPage)?.classList.add('active');
+
+      // Close mobile menu
+      this.navbar?.classList.remove('show');
+   }
+
+   private async initSimulation(targetPage: string): Promise<void> {
+      try {
+         switch (targetPage) {
+            case 'home':
+               this.currentSimulation = new HomeSimulation();
+               await this.currentSimulation.init();
+               break;
+            case 'physarum':
+               this.currentSimulation = new PhysarumSimulation();
+               await this.currentSimulation.init();
+               break;
+            case 'waves':
+               this.currentSimulation = new WaveSimulation();
+               await this.currentSimulation.init();
+               break;
+         }
+      } catch (error) {
+         console.error(`Failed to initialize ${targetPage} simulation:`, error);
+      }
+   }
+
+   // ... (other methods)
+}
+
+// Initialize app when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+   console.log("works");
+   new PortfolioApp();
+});
