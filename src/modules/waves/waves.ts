@@ -1,10 +1,13 @@
-import { WebGPUUtils } from '../../utils/webgpu-utils';
-import { WaveBuffers } from '../../types/webgpu';
+import { WebGPUUtils } from '@/utils/webgpu-utils';
+import { WaveBuffers } from '@/types/webgpu';
 import { waveComputeShader, waveVertexShader, waveFragmentShader } from './waveShaders';
+import { GPUResourceManager } from '@/utils/gpu-resource-manager';
 
 export class WaveSimulation {
    private animationId: number | null = null;
    private isDrawing = false;
+   private resourceManager = new GPUResourceManager();
+   private mouseEventCleanup: (() => void)[] = [];
 
    async init(): Promise<void> {
       const canvas = document.getElementById('waves-canvas') as HTMLCanvasElement;
@@ -43,7 +46,6 @@ export class WaveSimulation {
             entryPoint: 'cs',
          },
       });
-
       const renderPipeline = device.createRenderPipeline({
          label: 'WaveRenderPipeline',
          layout: 'auto',
@@ -61,11 +63,12 @@ export class WaveSimulation {
          },
       });
 
-      // Initialize wave data and buffers
+      this.resourceManager.registerPipeline(computePipeline);
+      this.resourceManager.registerPipeline(renderPipeline);
+
       const waveArrayData = this.createWaveArrayData(canvas.width, canvas.height, 8, 2.0);
       const buffers = this.initWaveArrays(device, waveArrayData, canvas.width, canvas.height);
 
-      // Create bind groups
       const computeBindGroup = device.createBindGroup({
          layout: computePipeline.getBindGroupLayout(0),
          entries: [
@@ -74,7 +77,6 @@ export class WaveSimulation {
             { binding: 2, resource: { buffer: buffers.waveArrayNew } },
          ],
       });
-
       const renderBindGroup = device.createBindGroup({
          layout: renderPipeline.getBindGroupLayout(0),
          entries: [
@@ -84,26 +86,37 @@ export class WaveSimulation {
          ],
       });
 
+      this.resourceManager.registerBindGroup(computeBindGroup);
+      this.resourceManager.registerBindGroup(renderBindGroup);
+
       this.setupMouseEvents(canvas, device, buffers.waveArrayCurrent);
       this.startRenderLoop(device, context, computePipeline, renderPipeline, computeBindGroup, renderBindGroup, canvas);
    }
 
    private setupMouseEvents(canvas: HTMLCanvasElement, device: GPUDevice, waveArrayCurrent: GPUBuffer) {
-      canvas.addEventListener("mousemove", (event) => {
+      const handleMouseMove = (event: MouseEvent) => {
          if (this.isDrawing) {
             let index = event.clientY * canvas.width + event.clientX - Math.floor(canvas.width / 2);
             const newWave = new Float32Array(1);
             newWave[0] = 1.0;
             device.queue.writeBuffer(waveArrayCurrent, index * 4, newWave);
-            // device.queue.writeBuffer(waveArrayOld, index * 4, newWave);
          }
-      })
+      };
+      const handleMouseDown = () => {
+         this.isDrawing = !this.isDrawing;
+      };
 
-      canvas.addEventListener("mousedown", (_) => { this.isDrawing = !this.isDrawing; });
+      canvas.addEventListener('mousemove', handleMouseMove);
+      canvas.addEventListener('mousedown', handleMouseDown);
+
+      this.mouseEventCleanup.push(
+         () => canvas.removeEventListener('mousemove', handleMouseMove),
+         () => canvas.removeEventListener('mousedown', handleMouseDown),
+      );
    }
 
-   private startRenderLoop(device: GPUDevice, context: GPUCanvasContext, computePipeline: GPUComputePipeline, renderPipeline: GPURenderPipeline, computeBindGroup: GPUBindGroup, renderBindGroup: GPUBindGroup, canvas: HTMLCanvasElement) {
-      function render() {
+   private startRenderLoop(device: GPUDevice, context: GPUCanvasContext, computePipeline: GPUComputePipeline, renderPipeline: GPURenderPipeline, computeBindGroup: GPUBindGroup, renderBindGroup: GPUBindGroup, canvas: HTMLCanvasElement): void {
+      const render = () => {
          const commandEncoder = device.createCommandEncoder();
 
          const computePass = commandEncoder.beginComputePass();
@@ -129,9 +142,9 @@ export class WaveSimulation {
 
          device.queue.submit([commandEncoder.finish()]);
 
-         requestAnimationFrame(render);
+         this.animationId = requestAnimationFrame(render);
       }
-      requestAnimationFrame(render)
+      render();
    }
 
    private createWaveArrayData(width: number, height: number, radius: number, val: number): BufferSource {
@@ -152,15 +165,19 @@ export class WaveSimulation {
    }
 
    private initWaveArrays(device: GPUDevice, arrayData: BufferSource, width: number, height: number): WaveBuffers {
-      const createBuffer = () => device.createBuffer({
-         size: width * height * 4,
-         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
-      });
+      const createBuffer = (label: string) => {
+         const buffer = device.createBuffer({
+            size: width * height * 4,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST, label
+         });
+
+         return this.resourceManager.registerBuffer(buffer);
+      };
 
       const buffers: WaveBuffers = {
-         waveArrayOld: createBuffer(),
-         waveArrayCurrent: createBuffer(),
-         waveArrayNew: createBuffer(),
+         waveArrayOld: createBuffer('waveArrayOld'),
+         waveArrayCurrent: createBuffer('waveArrayCurrent'),
+         waveArrayNew: createBuffer('waveArrayNew'),
       };
 
       Object.values(buffers).forEach(buffer => {
@@ -171,9 +188,19 @@ export class WaveSimulation {
    }
 
    destroy(): void {
+      console.log("Destroying WaveSimulation resources...");
+
       if (this.animationId) {
          cancelAnimationFrame(this.animationId);
          this.animationId = null;
       }
+
+      this.mouseEventCleanup.forEach(cleanup => cleanup());
+      this.mouseEventCleanup.length = 0;
+
+      this.resourceManager.destroy();
+
+      const resourceCount = this.resourceManager.getResourceCount();
+      console.log('WaveSimulation cleanup complete:', resourceCount);
    }
 }

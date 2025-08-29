@@ -35,6 +35,9 @@ class PortfolioApp {
       // Clean up current simulation
       if (this.currentSimulation && 'destroy' in this.currentSimulation) {
          this.currentSimulation.destroy();
+         this.currentSimulation = null;
+
+         await new Promise(resolve => setTimeout(resolve, 100));
       }
 
       // Update navigation state

@@ -1,10 +1,13 @@
 import { WebGPUUtils } from '../../utils/webgpu-utils';
 import { DiffusionBuffers } from '../../types/webgpu';
 import { diffusionComputeShader, diffusionVertexShader, diffusionFragmentShader } from './diffusionShaders';
+import { GPUResourceManager } from '@/utils/gpu-resource-manager';
 
 export class DiffusionSimulation {
    private animationId: number | null = null;
    private isDrawing = false;
+   private resourceManager = new GPUResourceManager();
+   private mouseEventCleanup: (() => void)[] = [];
 
    async init(): Promise<void> {
       const canvas = document.getElementById('diffusion-canvas') as HTMLCanvasElement;
@@ -18,26 +21,22 @@ export class DiffusionSimulation {
 
       const { device, context, canvasFormat } = webgpu;
 
-      // Create shaders
       const computeShaderModule = WebGPUUtils.createShaderModule(
          device,
          diffusionComputeShader(),
          'diffusionCompute'
       );
-
       const vertexShaderModule = WebGPUUtils.createShaderModule(
          device,
          diffusionVertexShader(),
          'diffusionVertex'
       );
-
       const fragmentShaderModule = WebGPUUtils.createShaderModule(
          device,
          diffusionFragmentShader(),
          'diffusionFragment'
       );
 
-      // Create pipelines
       const computePipeline = device.createComputePipeline({
          layout: 'auto',
          compute: {
@@ -45,7 +44,6 @@ export class DiffusionSimulation {
             entryPoint: 'cs',
          },
       });
-
       const renderPipeline = device.createRenderPipeline({
          label: 'DiffusionRenderPipeline',
          layout: 'auto',
@@ -63,11 +61,12 @@ export class DiffusionSimulation {
          },
       });
 
-      // Initialize diffusion data and buffers
+      this.resourceManager.registerPipeline(computePipeline);
+      this.resourceManager.registerPipeline(renderPipeline);
+
       const diffusionArrayData = this.createDiffusionArrayData(canvas.width, canvas.height, 8, 2.0);
       const buffers = this.initDiffusionArrays(device, diffusionArrayData, canvas.width, canvas.height);
 
-      // Create bind groups
       const computeBindGroup = device.createBindGroup({
          layout: computePipeline.getBindGroupLayout(0),
          entries: [
@@ -75,7 +74,6 @@ export class DiffusionSimulation {
             { binding: 1, resource: { buffer: buffers.diffusionArrayNew } },
          ],
       });
-
       const renderBindGroup = device.createBindGroup({
          layout: renderPipeline.getBindGroupLayout(0),
          entries: [
@@ -84,25 +82,37 @@ export class DiffusionSimulation {
          ],
       });
 
+      this.resourceManager.registerBindGroup(computeBindGroup);
+      this.resourceManager.registerBindGroup(renderBindGroup);
+
       this.setupMouseEvents(canvas, device, buffers.diffusionArrayCurrent);
       this.startRenderLoop(device, context, computePipeline, renderPipeline, computeBindGroup, renderBindGroup, canvas);
    }
 
    private setupMouseEvents(canvas: HTMLCanvasElement, device: GPUDevice, diffusionArrayCurrent: GPUBuffer) {
-      canvas.addEventListener("mousemove", (event) => {
+      const handleMouseMove = (event: MouseEvent) => {
          if (this.isDrawing) {
             let index = event.clientY * canvas.width + event.clientX - Math.floor(canvas.width / 2);
             const newDiffusion = new Float32Array(1);
             newDiffusion[0] = 1.0;
             device.queue.writeBuffer(diffusionArrayCurrent, index * 4, newDiffusion);
          }
-      })
+      };
+      const handleMouseDown = () => {
+         this.isDrawing = !this.isDrawing;
+      };
 
-      canvas.addEventListener("mousedown", (_) => { this.isDrawing = !this.isDrawing; });
+      canvas.addEventListener('mousemove', handleMouseMove);
+      canvas.addEventListener('mousedown', handleMouseDown);
+
+      this.mouseEventCleanup.push(
+         () => canvas.removeEventListener('mousemove', handleMouseMove),
+         () => canvas.removeEventListener('mousedown', handleMouseDown),
+      );
    }
 
    private startRenderLoop(device: GPUDevice, context: GPUCanvasContext, computePipeline: GPUComputePipeline, renderPipeline: GPURenderPipeline, computeBindGroup: GPUBindGroup, renderBindGroup: GPUBindGroup, canvas: HTMLCanvasElement) {
-      function render() {
+      const render = () => {
          const commandEncoder = device.createCommandEncoder();
 
          const computePass = commandEncoder.beginComputePass();
@@ -128,9 +138,9 @@ export class DiffusionSimulation {
 
          device.queue.submit([commandEncoder.finish()]);
 
-         requestAnimationFrame(render);
+         this.animationId = requestAnimationFrame(render);
       }
-      requestAnimationFrame(render)
+      render();
    }
 
    private createDiffusionArrayData(width: number, height: number, radius: number, val: number): BufferSource {
@@ -151,14 +161,18 @@ export class DiffusionSimulation {
    }
 
    private initDiffusionArrays(device: GPUDevice, arrayData: BufferSource, width: number, height: number): DiffusionBuffers {
-      const createBuffer = () => device.createBuffer({
-         size: width * height * 4,
-         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
-      });
+      const createBuffer = (label: string) => {
+         const buffer = device.createBuffer({
+            size: width * height * 4,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST, label
+         });
+
+         return this.resourceManager.registerBuffer(buffer);
+      };
 
       const buffers: DiffusionBuffers = {
-         diffusionArrayCurrent: createBuffer(),
-         diffusionArrayNew: createBuffer(),
+         diffusionArrayCurrent: createBuffer('diffusionArrayCurrent'),
+         diffusionArrayNew: createBuffer('diffusionArrayNew'),
       };
 
       Object.values(buffers).forEach(buffer => {
@@ -169,9 +183,19 @@ export class DiffusionSimulation {
    }
 
    destroy(): void {
+      console.log("Destroying DiffusionSimulation resources...");
+
       if (this.animationId) {
          cancelAnimationFrame(this.animationId);
          this.animationId = null;
       }
+
+      this.mouseEventCleanup.forEach(cleanup => cleanup());
+      this.mouseEventCleanup.length = 0;
+
+      this.resourceManager.destroy();
+
+      const resourceCount = this.resourceManager.getResourceCount();
+      console.log('DiffusionSimulation cleanup complete:', resourceCount);
    }
 }

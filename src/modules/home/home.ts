@@ -1,7 +1,9 @@
 import { WebGPUUtils } from '../../utils/webgpu-utils';
+import { GPUResourceManager } from '@/utils/gpu-resource-manager';
 
 export class HomeSimulation {
    private animationId: number | null = null;
+   private resourceManager = new GPUResourceManager();
 
    async init(): Promise<void> {
       const canvas = document.getElementById('home-canvas') as HTMLCanvasElement;
@@ -44,6 +46,8 @@ export class HomeSimulation {
             topology: 'triangle-list',
          },
       });
+
+      this.resourceManager.registerPipeline(pipeline);
 
       this.render(device, context, pipeline);
    }
@@ -103,9 +107,16 @@ export class HomeSimulation {
    }
 
    destroy(): void {
+      console.log("Destroying HomeSimulation resources...");
+
       if (this.animationId) {
          cancelAnimationFrame(this.animationId);
          this.animationId = null;
       }
+
+      this.resourceManager.destroy();
+
+      const resourceCount = this.resourceManager.getResourceCount();
+      console.log('HomeSimulation cleanup complete:', resourceCount);
    }
 }

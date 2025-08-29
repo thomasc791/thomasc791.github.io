@@ -1,9 +1,11 @@
 import { WebGPUUtils } from '../../utils/webgpu-utils';
 import { PhysarumBuffers } from '../../types/webgpu';
 import { physarumComputeShader, physarumVertexShader, physarumFragmentShader } from './physarumShaders';
+import { GPUResourceManager } from '@/utils/gpu-resource-manager';
 
 export class PhysarumSimulation {
    private animationId: number | null = null;
+   private resourceManager = new GPUResourceManager();
 
    async init(): Promise<void> {
       const canvas = document.getElementById('physarum-canvas') as HTMLCanvasElement;
@@ -36,7 +38,6 @@ export class PhysarumSimulation {
          'PhysarumFragment'
       );
 
-      // Create pipelines
       const computePipeline = device.createComputePipeline({
          layout: 'auto',
          compute: {
@@ -44,7 +45,6 @@ export class PhysarumSimulation {
             entryPoint: 'cs',
          },
       });
-
       const renderPipeline = device.createRenderPipeline({
          label: 'PhysarumRenderPipeline',
          layout: 'auto',
@@ -62,11 +62,12 @@ export class PhysarumSimulation {
          },
       });
 
-      // Initialize Physarum data and buffers
+      this.resourceManager.registerPipeline(computePipeline);
+      this.resourceManager.registerPipeline(renderPipeline);
+
       const physarumArrayData = this.createPhysarumArrayData(canvas.width, canvas.height, 8, 2.0);
       const buffers = this.initPhysarumArrays(device, physarumArrayData, canvas.width, canvas.height);
 
-      // Create bind groups
       const computeBindGroup = device.createBindGroup({
          layout: computePipeline.getBindGroupLayout(0),
          entries: [
@@ -74,7 +75,6 @@ export class PhysarumSimulation {
             { binding: 1, resource: { buffer: buffers.physarumArrayNew } },
          ],
       });
-
       const renderBindGroup = device.createBindGroup({
          layout: renderPipeline.getBindGroupLayout(0),
          entries: [
@@ -83,11 +83,14 @@ export class PhysarumSimulation {
          ],
       });
 
+      this.resourceManager.registerBindGroup(computeBindGroup);
+      this.resourceManager.registerBindGroup(renderBindGroup);
+
       this.startRenderLoop(device, context, computePipeline, renderPipeline, computeBindGroup, renderBindGroup, canvas);
    }
 
    private startRenderLoop(device: GPUDevice, context: GPUCanvasContext, computePipeline: GPUComputePipeline, renderPipeline: GPURenderPipeline, computeBindGroup: GPUBindGroup, renderBindGroup: GPUBindGroup, canvas: HTMLCanvasElement) {
-      function render() {
+      const render = () => {
          const commandEncoder = device.createCommandEncoder();
 
          const computePass = commandEncoder.beginComputePass();
@@ -113,9 +116,9 @@ export class PhysarumSimulation {
 
          device.queue.submit([commandEncoder.finish()]);
 
-         requestAnimationFrame(render);
+         this.animationId = requestAnimationFrame(render);
       }
-      requestAnimationFrame(render)
+      render();
    }
 
 
@@ -137,14 +140,18 @@ export class PhysarumSimulation {
    }
 
    private initPhysarumArrays(device: GPUDevice, arrayData: BufferSource, width: number, height: number): PhysarumBuffers {
-      const createBuffer = () => device.createBuffer({
-         size: width * height * 4,
-         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
-      });
+      const createBuffer = (label: string) => {
+         const buffer = device.createBuffer({
+            size: width * height * 4,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST, label
+         });
+
+         return this.resourceManager.registerBuffer(buffer);
+      };
 
       const buffers: PhysarumBuffers = {
-         physarumArrayCurrent: createBuffer(),
-         physarumArrayNew: createBuffer(),
+         physarumArrayCurrent: createBuffer('physarumArrayCurrent'),
+         physarumArrayNew: createBuffer('physarumArrayNew'),
       };
 
       Object.values(buffers).forEach(buffer => {
@@ -155,9 +162,16 @@ export class PhysarumSimulation {
    }
 
    destroy(): void {
+      console.log("Destroying PhysarumSimulation resources...");
+
       if (this.animationId) {
          cancelAnimationFrame(this.animationId);
          this.animationId = null;
       }
+
+      this.resourceManager.destroy();
+
+      const resourceCount = this.resourceManager.getResourceCount();
+      console.log('PhysarumSimulation cleanup complete:', resourceCount);
    }
 }
