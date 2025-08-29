@@ -1,4 +1,4 @@
-import { WebGPUUtils } from '../utils/webgpu-utils';
+import { WebGPUUtils } from '../../utils/webgpu-utils';
 
 export class HomeSimulation {
    private animationId: number | null = null;

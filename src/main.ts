@@ -1,9 +1,10 @@
-import { HomeSimulation } from './modules/home';
-import { WaveSimulation } from './modules/waves';
-import { PhysarumSimulation } from './modules/physarum';
+import { HomeSimulation } from './modules/home/home';
+import { PhysarumSimulation } from './modules/physarum/physarum';
+import { DiffusionSimulation } from './modules/diffusion/diffusion';
+import { WaveSimulation } from './modules/waves/waves';
 
 class PortfolioApp {
-   private currentSimulation: HomeSimulation | WaveSimulation | PhysarumSimulation | null = null;
+   private currentSimulation: HomeSimulation | WaveSimulation | PhysarumSimulation | DiffusionSimulation | null = null;
    private navLinks: NodeListOf<HTMLElement>;
    private pages: NodeListOf<HTMLElement>;
    private navbar: HTMLElement | null;
@@ -21,12 +22,13 @@ class PortfolioApp {
          link.addEventListener('click', (e) => {
             e.preventDefault();
             const targetPage = link.getAttribute('data-page');
-            console.log(targetPage);
             if (targetPage) {
                this.navigateToPage(targetPage);
             }
          });
       });
+
+      this.navigateToPage("home");
    }
 
    private async navigateToPage(targetPage: string): Promise<void> {
@@ -66,6 +68,10 @@ class PortfolioApp {
                this.currentSimulation = new PhysarumSimulation();
                await this.currentSimulation.init();
                break;
+            case 'diffusion':
+               this.currentSimulation = new DiffusionSimulation();
+               await this.currentSimulation.init();
+               break;
             case 'waves':
                this.currentSimulation = new WaveSimulation();
                await this.currentSimulation.init();
@@ -81,6 +87,5 @@ class PortfolioApp {
 
 // Initialize app when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-   console.log("works");
    new PortfolioApp();
 });

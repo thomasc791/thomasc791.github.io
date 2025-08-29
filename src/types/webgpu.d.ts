@@ -19,8 +19,12 @@ export interface WaveBuffers {
    waveArrayNew: GPUBuffer;
 }
 
+export interface DiffusionBuffers {
+   diffusionArrayCurrent: GPUBuffer;
+   diffusionArrayNew: GPUBuffer;
+}
+
 export interface PhysarumBuffers {
-   physarumArrayOld: GPUBuffer;
    physarumArrayCurrent: GPUBuffer;
    physarumArrayNew: GPUBuffer;
 }
