@@ -14,7 +14,25 @@ class PortfolioApp {
       this.pages = document.querySelectorAll('.page');
       this.navbar = document.querySelector('.navbar');
 
+      this.initShowMenu();
+
       this.initNavigation();
+   }
+
+   private async initShowMenu() {
+      const navbar = document.getElementById("nav");
+      const navTrigger = document.getElementsByClassName("navbar-trigger");
+      navbar!.style.top = "20px";
+      window.setTimeout(() => {
+         navbar!.style.top = "-60px";
+      }, 1000);
+
+      navTrigger[0].addEventListener('mouseover', (_) => {
+         navbar!.style.top = "20px";
+      });
+      navbar?.addEventListener('mouseleave', (_) => {
+         navbar!.style.top = "-60px";
+      });
    }
 
    private initNavigation(): void {

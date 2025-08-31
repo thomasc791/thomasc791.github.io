@@ -1,11 +1,12 @@
 import { WebGPUUtils } from '../../utils/webgpu-utils';
-import { PhysarumBuffers } from '../../types/webgpu';
-import { physarumComputeShader, physarumVertexShader, physarumFragmentShader } from './physarumShaders';
+import { DiffusionBuffers, PhysarumBuffers } from '../../types/webgpu';
+import { physarumMovementShader, physarumDiffusionShader, physarumVertexShader, physarumFragmentShader } from './physarumShaders';
 import { GPUResourceManager } from '@/utils/gpu-resource-manager';
 
 export class PhysarumSimulation {
    private animationId: number | null = null;
    private resourceManager = new GPUResourceManager();
+   private numParticles: number = 102400;
 
    async init(): Promise<void> {
       const canvas = document.getElementById('physarum-canvas') as HTMLCanvasElement;
@@ -19,11 +20,16 @@ export class PhysarumSimulation {
 
       const { device, context, canvasFormat } = webgpu;
 
-      // Create shaders
-      const computeShaderModule = WebGPUUtils.createShaderModule(
+      const movementShaderModule = WebGPUUtils.createShaderModule(
          device,
-         physarumComputeShader(),
-         'PhysarumCompute'
+         physarumMovementShader(this.numParticles),
+         'PhysarumMovement'
+      );
+
+      const diffusionShaderModule = WebGPUUtils.createShaderModule(
+         device,
+         physarumDiffusionShader(),
+         'PhysarumDiffusion'
       );
 
       const vertexShaderModule = WebGPUUtils.createShaderModule(
@@ -38,16 +44,55 @@ export class PhysarumSimulation {
          'PhysarumFragment'
       );
 
-      const computePipeline = device.createComputePipeline({
-         layout: 'auto',
+      const physarumBindGroupLayout = device.createBindGroupLayout({
+         entries: [
+            {
+               binding: 0,
+               visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
+               buffer: {
+                  type: "storage",
+               },
+            },
+            {
+               binding: 1,
+               visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
+               buffer: {
+                  type: "storage",
+               },
+            },
+         ],
+         label: 'ParticleBindGroupLayout'
+      });
+
+      const pipelineLayout = device.createPipelineLayout({
+         bindGroupLayouts: [
+            physarumBindGroupLayout,
+            physarumBindGroupLayout
+         ],
+         label: 'PipelineLayout'
+      });
+
+      const movementPipeline = device.createComputePipeline({
+         label: 'PhysarumMovementPipeline',
+         layout: pipelineLayout,
          compute: {
-            module: computeShaderModule,
+            module: movementShaderModule,
             entryPoint: 'cs',
          },
       });
+
+      const diffusionPipeline = device.createComputePipeline({
+         label: 'PhysarumDiffusionPipeline',
+         layout: pipelineLayout,
+         compute: {
+            module: diffusionShaderModule,
+            entryPoint: 'cs',
+         },
+      });
+
       const renderPipeline = device.createRenderPipeline({
          label: 'PhysarumRenderPipeline',
-         layout: 'auto',
+         layout: pipelineLayout,
          vertex: {
             module: vertexShaderModule,
             entryPoint: 'vs',
@@ -62,42 +107,56 @@ export class PhysarumSimulation {
          },
       });
 
-      this.resourceManager.registerPipeline(computePipeline);
+      this.resourceManager.registerPipeline(movementPipeline);
+      this.resourceManager.registerPipeline(diffusionPipeline);
       this.resourceManager.registerPipeline(renderPipeline);
 
-      const physarumArrayData = this.createPhysarumArrayData(canvas.width, canvas.height, 8, 2.0);
-      const buffers = this.initPhysarumArrays(device, physarumArrayData, canvas.width, canvas.height);
+      const diffusionArrayData = this.createDiffusionArrayData(canvas.width, canvas.height);
+      const particleData = this.createPhysarumArrayData(canvas.width, canvas.height, this.numParticles);
+      const diffusionBuffers = this.initDiffusionArrays(device, diffusionArrayData, canvas.width, canvas.height);
+      const particleBuffers = this.initPhysarumArrays(device, particleData, this.numParticles);
 
-      const computeBindGroup = device.createBindGroup({
-         layout: computePipeline.getBindGroupLayout(0),
+
+      const diffusionBindGroup = device.createBindGroup({
+         layout: physarumBindGroupLayout,
          entries: [
-            { binding: 0, resource: { buffer: buffers.physarumArrayCurrent } },
-            { binding: 1, resource: { buffer: buffers.physarumArrayNew } },
+            { binding: 0, resource: { buffer: diffusionBuffers.diffusionArrayCurrent } },
+            { binding: 1, resource: { buffer: diffusionBuffers.diffusionArrayNew } },
          ],
+         label: "diffusionBindGroup"
       });
-      const renderBindGroup = device.createBindGroup({
-         layout: renderPipeline.getBindGroupLayout(0),
+      const particleBindGroup = device.createBindGroup({
+         layout: physarumBindGroupLayout,
          entries: [
-            { binding: 0, resource: { buffer: buffers.physarumArrayCurrent } },
-            { binding: 1, resource: { buffer: buffers.physarumArrayNew } },
+            { binding: 0, resource: { buffer: particleBuffers.particlePositionData } },
+            { binding: 1, resource: { buffer: particleBuffers.particleDirectionData } },
          ],
+         label: "particleBindGroup"
       });
 
-      this.resourceManager.registerBindGroup(computeBindGroup);
-      this.resourceManager.registerBindGroup(renderBindGroup);
+      this.resourceManager.registerBindGroup(diffusionBindGroup);
+      this.resourceManager.registerBindGroup(particleBindGroup);
 
-      this.startRenderLoop(device, context, computePipeline, renderPipeline, computeBindGroup, renderBindGroup, canvas);
+      this.startRenderLoop(device, context, movementPipeline, diffusionPipeline, renderPipeline, diffusionBindGroup, particleBindGroup, canvas);
    }
 
-   private startRenderLoop(device: GPUDevice, context: GPUCanvasContext, computePipeline: GPUComputePipeline, renderPipeline: GPURenderPipeline, computeBindGroup: GPUBindGroup, renderBindGroup: GPUBindGroup, canvas: HTMLCanvasElement) {
+   private startRenderLoop(device: GPUDevice, context: GPUCanvasContext, movementPipeline: GPUComputePipeline, diffusionPipeline: GPUComputePipeline, renderPipeline: GPURenderPipeline, diffusionBindGroup: GPUBindGroup, particleBindGroup: GPUBindGroup, canvas: HTMLCanvasElement) {
       const render = () => {
          const commandEncoder = device.createCommandEncoder();
 
-         const computePass = commandEncoder.beginComputePass();
-         computePass.setPipeline(computePipeline);
-         computePass.setBindGroup(0, computeBindGroup);
-         computePass.dispatchWorkgroups(Math.ceil(canvas.width / 16), Math.ceil(canvas.height / 4));
-         computePass.end();
+         const movementPass = commandEncoder.beginComputePass();
+         movementPass.setPipeline(movementPipeline);
+         movementPass.setBindGroup(0, diffusionBindGroup);
+         movementPass.setBindGroup(1, particleBindGroup);
+         movementPass.dispatchWorkgroups(Math.ceil(this.numParticles / 64), 1);
+         movementPass.end();
+
+         const diffusionPass = commandEncoder.beginComputePass();
+         diffusionPass.setPipeline(diffusionPipeline);
+         diffusionPass.setBindGroup(0, diffusionBindGroup);
+         diffusionPass.setBindGroup(1, particleBindGroup);
+         diffusionPass.dispatchWorkgroups(Math.ceil(canvas.width / 16), Math.ceil(canvas.height / 4));
+         diffusionPass.end();
 
          const renderPassDescriptor: GPURenderPassDescriptor = {
             colorAttachments: [{
@@ -110,7 +169,8 @@ export class PhysarumSimulation {
 
          const renderPass = commandEncoder.beginRenderPass(renderPassDescriptor);
          renderPass.setPipeline(renderPipeline);
-         renderPass.setBindGroup(0, renderBindGroup);
+         renderPass.setBindGroup(0, diffusionBindGroup);
+         renderPass.setBindGroup(1, particleBindGroup);
          renderPass.draw(6);
          renderPass.end();
 
@@ -122,24 +182,27 @@ export class PhysarumSimulation {
    }
 
 
-   private createPhysarumArrayData(width: number, height: number, radius: number, val: number): BufferSource {
+   private createDiffusionArrayData(width: number, height: number): BufferSource {
       const arrayData = Array(width * height).fill(0.0);
-
-      for (let i = -radius; i < radius; i++) {
-         for (let j = -radius; j < radius; j++) {
-            if (i * i + j * j > radius * radius) continue;
-
-            const index = (i + Math.floor(height / 2)) * width + j + width;
-            if (index >= 0 && index < arrayData.length) {
-               arrayData[index] = val;
-            }
-         }
-      }
 
       return new Float32Array(arrayData);
    }
 
-   private initPhysarumArrays(device: GPUDevice, arrayData: BufferSource, width: number, height: number): PhysarumBuffers {
+   private createPhysarumArrayData(width: number, height: number, numParticle: number): [BufferSource, BufferSource] {
+      const particlePositionData = Array.from(
+         { length: numParticle },
+         () => [Math.random() * width, Math.random() * height]
+      );
+
+      const particleDirectionData = Array.from(
+         { length: numParticle },
+         () => Math.random() * 2 * Math.PI
+      );
+
+      return [new Float32Array(particlePositionData.flat()), new Float32Array(particleDirectionData)];
+   }
+
+   private initDiffusionArrays(device: GPUDevice, arrayData: BufferSource, width: number, height: number): DiffusionBuffers {
       const createBuffer = (label: string) => {
          const buffer = device.createBuffer({
             size: width * height * 4,
@@ -149,13 +212,35 @@ export class PhysarumSimulation {
          return this.resourceManager.registerBuffer(buffer);
       };
 
-      const buffers: PhysarumBuffers = {
-         physarumArrayCurrent: createBuffer('physarumArrayCurrent'),
-         physarumArrayNew: createBuffer('physarumArrayNew'),
+      const buffers: DiffusionBuffers = {
+         diffusionArrayCurrent: createBuffer('diffusionArrayCurrent'),
+         diffusionArrayNew: createBuffer('diffusionArrayNew'),
       };
 
       Object.values(buffers).forEach(buffer => {
          device.queue.writeBuffer(buffer, 0, arrayData);
+      });
+
+      return buffers;
+   }
+
+   private initPhysarumArrays(device: GPUDevice, particleData: [BufferSource, BufferSource], numParticles: number): PhysarumBuffers {
+      const createBuffer = (label: string, size: number) => {
+         const buffer = device.createBuffer({
+            size: numParticles * size * 4,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST, label
+         });
+
+         return this.resourceManager.registerBuffer(buffer);
+      };
+
+      const buffers: PhysarumBuffers = {
+         particlePositionData: createBuffer('particlePositionArray', 2),
+         particleDirectionData: createBuffer('particleDirectionArray', 1),
+      };
+
+      Object.values(buffers).forEach((buffer, index) => {
+         device.queue.writeBuffer(buffer, 0, particleData[index]);
       });
 
       return buffers;

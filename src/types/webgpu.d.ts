@@ -1,7 +1,3 @@
-// The @webgpu/types package provides the main WebGPU types
-// This file extends them with custom application types
-
-// Custom types for your application
 export interface WebGPUContext {
    device: GPUDevice;
    context: GPUCanvasContext;
@@ -25,11 +21,10 @@ export interface DiffusionBuffers {
 }
 
 export interface PhysarumBuffers {
-   physarumArrayCurrent: GPUBuffer;
-   physarumArrayNew: GPUBuffer;
+   particlePositionData: GPUBuffer;
+   particleDirectionData: GPUBuffer;
 }
 
-// Extend global Window interface if needed
 declare global {
    interface Window {
       webgpuDevice?: GPUDevice;
