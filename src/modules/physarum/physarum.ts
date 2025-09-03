@@ -6,7 +6,7 @@ import { GPUResourceManager } from '@/utils/gpu-resource-manager';
 export class PhysarumSimulation {
    private animationId: number | null = null;
    private resourceManager = new GPUResourceManager();
-   private numParticles: number = 102400;
+   private numParticles: number = 1024000;
    private settingsData: [Float32Array, Float32Array];
    private startTime: number = Date.now();
 
