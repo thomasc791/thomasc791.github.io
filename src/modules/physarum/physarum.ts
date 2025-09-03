@@ -10,7 +10,7 @@ export class PhysarumSimulation {
    private settingsData: [Float32Array, Float32Array];
    private startTime: number = Date.now();
 
-   private constructor() {
+   public constructor() {
       this.settingsData = this.createSettingsData();
    }
 
@@ -187,7 +187,7 @@ export class PhysarumSimulation {
          movementPass.setBindGroup(1, particleBindGroup);
          movementPass.setBindGroup(2, settingsBindGroup);
          this.settingsData[1][0] = (Date.now() - this.startTime) / 1000;
-         device.queue.writeBuffer(settingsBuffer.time, 0, this.settingsData[1]);
+         device.queue.writeBuffer(settingsBuffer.time, 0, new Float32Array(this.settingsData[1]));
          movementPass.dispatchWorkgroups(Math.ceil(this.numParticles / 64), 1);
          movementPass.end();
 
@@ -197,7 +197,7 @@ export class PhysarumSimulation {
          diffusionPass.setBindGroup(1, particleBindGroup);
          diffusionPass.setBindGroup(2, settingsBindGroup);
          this.settingsData[1][0] = (Date.now() - this.startTime) / 1000;
-         device.queue.writeBuffer(settingsBuffer.time, 0, this.settingsData[1]);
+         device.queue.writeBuffer(settingsBuffer.time, 0, new Float32Array(this.settingsData[1]));
          diffusionPass.dispatchWorkgroups(Math.ceil(canvas.width / 16), Math.ceil(canvas.height / 4));
          diffusionPass.end();
 
@@ -216,7 +216,7 @@ export class PhysarumSimulation {
          renderPass.setBindGroup(1, particleBindGroup);
          renderPass.setBindGroup(2, settingsBindGroup);
          this.settingsData[1][0] = (Date.now() - this.startTime) / 1000;
-         device.queue.writeBuffer(settingsBuffer.time, 0, this.settingsData[1]);
+         device.queue.writeBuffer(settingsBuffer.time, 0, new Float32Array(this.settingsData[1]));
          renderPass.draw(6);
          renderPass.end();
 
@@ -319,7 +319,7 @@ export class PhysarumSimulation {
       };
 
       Object.values(buffers).forEach((buffer, index) => {
-         device.queue.writeBuffer(buffer, 0, arrayData[index]);
+         device.queue.writeBuffer(buffer, 0, new Float32Array(arrayData[index]));
       });
 
       return buffers;
