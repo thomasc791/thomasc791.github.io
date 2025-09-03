@@ -25,6 +25,11 @@ export interface PhysarumBuffers {
    particleDirectionData: GPUBuffer;
 }
 
+export interface SettingsBuffers {
+   settings: GPUBuffer;
+   time: GPUBuffer;
+}
+
 declare global {
    interface Window {
       webgpuDevice?: GPUDevice;
