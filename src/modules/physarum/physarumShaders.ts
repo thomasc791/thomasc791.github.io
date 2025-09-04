@@ -65,7 +65,7 @@ export function physarumMovementShader(numParticles: number): string {
 
          let straight = lookFront >= lookLeft && lookFront >= lookRight;
          let random = lookLeft >= lookFront && lookRight >= lookFront && !straight;
-         let left = lookLeft > lookFront && lookFront > lookRight && !random || random && (hash(u32(f32(particleIndex) * time[0])) <= p);
+         let left = lookLeft > lookFront && lookFront > lookRight && !random || random && (hash(u32(f32(particleIndex) * time[0])) > p);
          let right = lookRight > lookFront && lookFront > lookLeft && !random || random && (hash(u32(f32(particleIndex) * time[0])) <= p);
 
          dir = modulo(dir - turnAngle * (f32(right) - f32(left)), 2f * pi);
@@ -162,11 +162,11 @@ export function physarumFragmentShader(): string {
          let resolution = vec2<u32>(${window.innerWidth}, ${window.innerHeight});
 
          let index = u32(fragCoord.y) * resolution.x + u32(fragCoord.x);
-         
-         let isZero = diffusionArrayCurrent[index] > 1.0e-2;
-         diffusionArrayCurrent[index] *= f32(isZero);
-         let intensity = diffusionArrayCurrent[index];
+
+         let intensity = diffusionArrayNew[index];
+         // let isZero = intensity > 1.0e-1;
          return vec4<f32>(intensity, intensity, intensity, 1.0);
+         // return f32(isZero) * vec4<f32>(intensity, intensity, intensity, 1.0);
       }
 
       fn hash(y: u32) -> f32 {

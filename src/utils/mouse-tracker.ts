@@ -50,7 +50,7 @@ export class MouseTracker {
    getSettings(): Float32Array {
       this.pos.forEach((n, i) => this.settings[i] = n / this.resolution[i] * 40)
       this.settings[2] = clamp(this.scrollValue / 100, 0, 40);
-      this.settings[3] = 0.8;
+      this.settings[3] = 0.5;
       return this.settings;
    }
 
