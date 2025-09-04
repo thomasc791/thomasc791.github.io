@@ -8,7 +8,7 @@ export class PhysarumSimulation {
    private animationId: number | null = null;
    private mouseTracker: MouseTracker = new MouseTracker();
    private resourceManager = new GPUResourceManager();
-   private numParticles: number = 1024000;
+   private numParticles: number = 1024000 / 2;
    private settingsData: [Float32Array, Float32Array];
    private startTime: number = Date.now();
 
@@ -178,7 +178,7 @@ export class PhysarumSimulation {
       this.resourceManager.registerBindGroup(particleBindGroup);
       this.resourceManager.registerBindGroup(settingsBindGroup);
 
-      // this.startRenderLoop(device, context, movementPipeline, diffusionPipeline, renderPipeline, diffusionBindGroup, particleBindGroup, settingsBindGroup, settingsBuffers, canvas);
+      this.startRenderLoop(device, context, movementPipeline, diffusionPipeline, renderPipeline, diffusionBindGroup, particleBindGroup, settingsBindGroup, settingsBuffers, canvas);
    }
 
    private updateSettings(device: GPUDevice, settingsBuffer: SettingsBuffers): void {
@@ -251,7 +251,7 @@ export class PhysarumSimulation {
    private createPhysarumArrayData(width: number, height: number, numParticle: number): [BufferSource, BufferSource] {
       const particlePositionData = Array.from(
          { length: numParticle },
-         () => [Math.random() * width, Math.random() * height]
+         () => [1 + Math.random() * (width - 2), Math.random() * height]
       );
 
       const particleDirectionData = Array.from(

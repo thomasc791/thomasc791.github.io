@@ -30,11 +30,7 @@ export function physarumMovementShader(numParticles: number): string {
          let zeroVec = vec2<f32>(0, 0);
 
          let pi = radians(180.0);
-         // let turnAngle = settings[0];
-         // let angle = settings[1];
-         // let lookAhead = settings[2];
-         // let p = settings[3];
-         let turnAngle = 30;
+         let turnAngle = settings[0];
          let angle = settings[1];
          let lookAhead = settings[2];
          let p = settings[3];
@@ -63,19 +59,19 @@ export function physarumMovementShader(numParticles: number): string {
          outOfBounds = rightPos < zeroVec | rightPos > resolution;
          rightPos -= resolution * sign(rightPos) * vec2<f32>(outOfBounds);
 
-         let lookFront = diffusionArrayCurrent[u32(frontPos.y) * u32(resolution.x) + u32(frontPos.x)-u32(resolution.x)/2];
-         let lookLeft = diffusionArrayCurrent[u32(leftPos.y) * u32(resolution.x) + u32(leftPos.x)-u32(resolution.x)/2];
-         let lookRight = diffusionArrayCurrent[u32(rightPos.y) * u32(resolution.x) + u32(rightPos.x)-u32(resolution.x)/2];
+         let lookFront = diffusionArrayCurrent[u32(frontPos.y) * u32(resolution.x) + u32(frontPos.x)];
+         let lookLeft = diffusionArrayCurrent[u32(leftPos.y) * u32(resolution.x) + u32(leftPos.x)];
+         let lookRight = diffusionArrayCurrent[u32(rightPos.y) * u32(resolution.x) + u32(rightPos.x)];
 
          let straight = lookFront >= lookLeft && lookFront >= lookRight;
          let random = lookLeft >= lookFront && lookRight >= lookFront && !straight;
          let left = lookLeft > lookFront && lookFront > lookRight && !random || random && (hash(u32(f32(particleIndex) * time[0])) <= p);
          let right = lookRight > lookFront && lookFront > lookLeft && !random || random && (hash(u32(f32(particleIndex) * time[0])) <= p);
 
-         dir = (dir - turnAngle * (f32(right) - f32(left))) % (2f * pi);
+         dir = modulo(dir - turnAngle * (f32(right) - f32(left)), 2f * pi);
          pos += 1.0 * vec2<f32>(cos(dir), sin(dir));
 
-         diffusionArrayNew[u32(pos.y)*u32(resolution.x) + u32(pos.x) - u32(resolution.x)/2] = 1f;
+         diffusionArrayNew[u32(pos.y)*u32(resolution.x) + u32(pos.x)] = 1f;
 
          particleDirectionData[particleIndex] = dir;
          particlePositionData[2*particleIndex] = pos.x;
@@ -109,15 +105,15 @@ export function physarumDiffusionShader(): string {
          let i = global_id.x;
          let j = global_id.y;
 
-         let index = j*resolution.x + i - resolution.x/2;
+         let index = j*resolution.x + i;
          if (index < 0 || index >= arrayLength(&diffusionArrayCurrent)) {
             return;
          }
 
-         let indexLeft = j * resolution.x + (i - 1) % resolution.x - resolution.x/2;
-         let indexRight = j * resolution.x + (i + 1) % resolution.x - resolution.x/2;
-         let indexUp = ((j+1) % resolution.y) * resolution.x + i - resolution.x/2;
-         let indexDown = ((j-1) % resolution.y) * resolution.x + i - resolution.x/2;
+         let indexLeft = j * resolution.x + (i - 1) % resolution.x;
+         let indexRight = j * resolution.x + (i + 1) % resolution.x;
+         let indexUp = ((j+1) % resolution.y) * resolution.x + i;
+         let indexDown = ((j-1) % resolution.y) * resolution.x + i;
 
          diffusionArrayCurrent[index] = diffusionArrayNew[index];
 
@@ -166,6 +162,9 @@ export function physarumFragmentShader(): string {
          let resolution = vec2<u32>(${window.innerWidth}, ${window.innerHeight});
 
          let index = u32(fragCoord.y) * resolution.x + u32(fragCoord.x);
+         
+         let isZero = diffusionArrayCurrent[index] > 1.0e-2;
+         diffusionArrayCurrent[index] *= f32(isZero);
          let intensity = diffusionArrayCurrent[index];
          return vec4<f32>(intensity, intensity, intensity, 1.0);
       }

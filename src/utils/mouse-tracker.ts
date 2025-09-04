@@ -4,7 +4,7 @@ export class MouseTracker {
    private velocity: number = 0;
    private mouseEventCleanup: (() => void)[] = [];
    private startTime: number = Date.now();
-   private scrollValue: number = 20.0;
+   private scrollValue: number = 2000.0;
    private settings: Float32Array = new Float32Array(4);
    private resolution: Float32Array = new Float32Array(2);
    private dt: number = 0;
