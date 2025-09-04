@@ -2,9 +2,11 @@ import { WebGPUUtils } from '../../utils/webgpu-utils';
 import { DiffusionBuffers, PhysarumBuffers, SettingsBuffers } from '../../types/webgpu';
 import { physarumMovementShader, physarumDiffusionShader, physarumVertexShader, physarumFragmentShader } from './physarumShaders';
 import { GPUResourceManager } from '@/utils/gpu-resource-manager';
+import { MouseTracker } from '@/utils/mouse-tracker';
 
 export class PhysarumSimulation {
    private animationId: number | null = null;
+   private mouseTracker: MouseTracker = new MouseTracker();
    private resourceManager = new GPUResourceManager();
    private numParticles: number = 1024000;
    private settingsData: [Float32Array, Float32Array];
@@ -20,6 +22,8 @@ export class PhysarumSimulation {
 
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
+
+      this.mouseTracker.setResolution(canvas.width, canvas.height);
 
       const webgpu = await WebGPUUtils.initWebGPU('physarum-canvas');
       if (!webgpu) return;
@@ -174,10 +178,25 @@ export class PhysarumSimulation {
       this.resourceManager.registerBindGroup(particleBindGroup);
       this.resourceManager.registerBindGroup(settingsBindGroup);
 
-      this.startRenderLoop(device, context, movementPipeline, diffusionPipeline, renderPipeline, diffusionBindGroup, particleBindGroup, settingsBindGroup, settingsBuffers, canvas);
+      // this.startRenderLoop(device, context, movementPipeline, diffusionPipeline, renderPipeline, diffusionBindGroup, particleBindGroup, settingsBindGroup, settingsBuffers, canvas);
+   }
+
+   private updateSettings(device: GPUDevice, settingsBuffer: SettingsBuffers): void {
+      let settings = this.mouseTracker.getSettings();
+
+      settings.forEach((v, i) => {
+         this.settingsData[0][i] = v;
+      });
+      this.settingsData[1][0] = (Date.now() - this.startTime) / 1000;
+
+      console.log(this.settingsData[0]);
+
+      device.queue.writeBuffer(settingsBuffer.settings, 0, new Float32Array(this.settingsData[0]));
+      device.queue.writeBuffer(settingsBuffer.time, 0, new Float32Array(this.settingsData[1]));
    }
 
    private startRenderLoop(device: GPUDevice, context: GPUCanvasContext, movementPipeline: GPUComputePipeline, diffusionPipeline: GPUComputePipeline, renderPipeline: GPURenderPipeline, diffusionBindGroup: GPUBindGroup, particleBindGroup: GPUBindGroup, settingsBindGroup: GPUBindGroup, settingsBuffer: SettingsBuffers, canvas: HTMLCanvasElement) {
+
       const render = () => {
          const commandEncoder = device.createCommandEncoder();
 
@@ -186,8 +205,7 @@ export class PhysarumSimulation {
          movementPass.setBindGroup(0, diffusionBindGroup);
          movementPass.setBindGroup(1, particleBindGroup);
          movementPass.setBindGroup(2, settingsBindGroup);
-         this.settingsData[1][0] = (Date.now() - this.startTime) / 1000;
-         device.queue.writeBuffer(settingsBuffer.time, 0, new Float32Array(this.settingsData[1]));
+         this.updateSettings(device, settingsBuffer);
          movementPass.dispatchWorkgroups(Math.ceil(this.numParticles / 64), 1);
          movementPass.end();
 
@@ -196,8 +214,6 @@ export class PhysarumSimulation {
          diffusionPass.setBindGroup(0, diffusionBindGroup);
          diffusionPass.setBindGroup(1, particleBindGroup);
          diffusionPass.setBindGroup(2, settingsBindGroup);
-         this.settingsData[1][0] = (Date.now() - this.startTime) / 1000;
-         device.queue.writeBuffer(settingsBuffer.time, 0, new Float32Array(this.settingsData[1]));
          diffusionPass.dispatchWorkgroups(Math.ceil(canvas.width / 16), Math.ceil(canvas.height / 4));
          diffusionPass.end();
 
@@ -215,8 +231,6 @@ export class PhysarumSimulation {
          renderPass.setBindGroup(0, diffusionBindGroup);
          renderPass.setBindGroup(1, particleBindGroup);
          renderPass.setBindGroup(2, settingsBindGroup);
-         this.settingsData[1][0] = (Date.now() - this.startTime) / 1000;
-         device.queue.writeBuffer(settingsBuffer.time, 0, new Float32Array(this.settingsData[1]));
          renderPass.draw(6);
          renderPass.end();
 
@@ -333,6 +347,7 @@ export class PhysarumSimulation {
          this.animationId = null;
       }
 
+      this.mouseTracker.destroy();
       this.resourceManager.destroy();
 
       const resourceCount = this.resourceManager.getResourceCount();

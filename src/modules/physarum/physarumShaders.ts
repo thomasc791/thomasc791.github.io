@@ -1,19 +1,12 @@
 export function physarumMovementShader(numParticles: number): string {
    return `
-      struct PhysarumSettings {
-         turnAngle: f32,
-         angle: f32,
-         lookAhead: f32,
-         p: f32,
-      }
-
       @group(0) @binding(0) var<storage, read_write> diffusionArrayCurrent: array<f32>;
       @group(0) @binding(1) var<storage, read_write> diffusionArrayNew: array<f32>;
 
       @group(1) @binding(0) var<storage, read_write> particlePositionData: array<f32>;
       @group(1) @binding(1) var<storage, read_write> particleDirectionData: array<f32>;
 
-      @group(2) @binding(0) var<uniform> settings: PhysarumSettings;
+      @group(2) @binding(0) var<uniform> settings: vec4<f32>;
       @group(2) @binding(1) var<uniform> time: vec4<f32>;
 
       @compute @workgroup_size(64)
@@ -37,10 +30,14 @@ export function physarumMovementShader(numParticles: number): string {
          let zeroVec = vec2<f32>(0, 0);
 
          let pi = radians(180.0);
-         let turnAngle = settings.turnAngle;
-         let angle = settings.angle;
-         let lookAhead = settings.lookAhead;
-         let p = settings.p;
+         // let turnAngle = settings[0];
+         // let angle = settings[1];
+         // let lookAhead = settings[2];
+         // let p = settings[3];
+         let turnAngle = 30;
+         let angle = settings[1];
+         let lookAhead = settings[2];
+         let p = settings[3];
 
          var outOfBounds = pos < zeroVec | pos > resolution;
 
@@ -78,7 +75,7 @@ export function physarumMovementShader(numParticles: number): string {
          dir = (dir - turnAngle * (f32(right) - f32(left))) % (2f * pi);
          pos += 1.0 * vec2<f32>(cos(dir), sin(dir));
 
-         diffusionArrayNew[u32(pos.y)*u32(resolution.x) + u32(pos.x) - u32(resolution.x)/2] = 1.0f;
+         diffusionArrayNew[u32(pos.y)*u32(resolution.x) + u32(pos.x) - u32(resolution.x)/2] = 1f;
 
          particleDirectionData[particleIndex] = dir;
          particlePositionData[2*particleIndex] = pos.x;
@@ -168,10 +165,9 @@ export function physarumFragmentShader(): string {
       fn fs(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
          let resolution = vec2<u32>(${window.innerWidth}, ${window.innerHeight});
 
-         let index = u32(fragCoord.y * f32(resolution.x) + fragCoord.x);
+         let index = u32(fragCoord.y) * resolution.x + u32(fragCoord.x);
          let intensity = diffusionArrayCurrent[index];
-         let isZero = intensity > 1e-2;
-         return f32(isZero) * vec4<f32>(intensity*intensity, intensity, intensity, 1.0);
+         return vec4<f32>(intensity, intensity, intensity, 1.0);
       }
 
       fn hash(y: u32) -> f32 {
