@@ -1,13 +1,12 @@
 export class MouseTracker {
    private prevPos: Float32Array = new Float32Array([0.0, 0.0]);
    private pos: Float32Array = new Float32Array([0.0, 0.0]);
-   private velocity: number = 0;
    private mouseEventCleanup: (() => void)[] = [];
-   private startTime: number = Date.now();
+   // private startTime: number = Date.now();
    private scrollValue: number = 2000.0;
    private settings: Float32Array = new Float32Array(4);
    private resolution: Float32Array = new Float32Array(2);
-   private dt: number = 0;
+   // private dt: number = 0;
 
    constructor() {
       console.log("Creating MouseTracker...")
@@ -16,20 +15,19 @@ export class MouseTracker {
 
    private initEvents(): void {
       const handleMove = (event: MouseEvent) => {
-         this.dt = Date.now() - this.startTime;
-         this.startTime = Date.now();
+         // this.dt = Date.now() - this.startTime;
+         // this.startTime = Date.now();
 
          if (this.prevPos[0] == 0.0) {
             this.prevPos = new Float32Array([event.clientX, event.clientY]);
             this.pos = new Float32Array([event.clientX, event.clientY]);
-            this.velocity = 0;
             return;
          }
 
          [this.pos[0], this.pos[1]] = [event.clientX, event.clientY];
-         let dp = this.pos.map((n, i) => n - this.prevPos[i]);
-         let v = dp.map((n) => n / this.dt);
-         this.velocity = Math.sqrt(v.reduce((vel, n) => vel + n * n));
+         // let dp = this.pos.map((n, i) => n - this.prevPos[i]);
+         // let v = dp.map((n) => n / this.dt);
+         // this.velocity = Math.sqrt(v.reduce((vel, n) => vel + n * n));
       }
       const handleScroll = (event: WheelEvent) => {
          this.scrollValue += event.deltaX + event.deltaY + event.deltaZ;
@@ -52,7 +50,7 @@ export class MouseTracker {
    getSettings(): Float32Array {
       this.pos.forEach((n, i) => this.settings[i] = n / this.resolution[i] * 40)
       this.settings[2] = clamp(this.scrollValue / 100, 0, 40);
-      this.settings[3] = 0.5;
+      this.settings[3] = 0.8;
       return this.settings;
    }
 
