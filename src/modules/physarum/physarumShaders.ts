@@ -30,8 +30,8 @@ export function physarumMovementShader(numParticles: number): string {
          let zeroVec = vec2<f32>(0, 0);
 
          let pi = radians(180.0);
-         let turnAngle = settings[0];
-         let angle = settings[1];
+         let turnAngle = radians(settings[0]);
+         let angle = radians(settings[1]);
          let lookAhead = settings[2];
          let p = settings[3];
 
@@ -164,9 +164,9 @@ export function physarumFragmentShader(): string {
          let index = u32(fragCoord.y) * resolution.x + u32(fragCoord.x);
 
          let intensity = diffusionArrayNew[index];
-         // let isZero = intensity > 1.0e-1;
-         return vec4<f32>(intensity, intensity, intensity, 1.0);
-         // return f32(isZero) * vec4<f32>(intensity, intensity, intensity, 1.0);
+         let isZero = intensity > 0.5e-2;
+         // return vec4<f32>(intensity, intensity, intensity, 1.0);
+         return f32(isZero) * vec4<f32>(intensity, intensity, intensity, 1.0);
       }
 
       fn hash(y: u32) -> f32 {

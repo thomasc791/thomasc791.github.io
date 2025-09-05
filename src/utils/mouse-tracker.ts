@@ -1,10 +1,10 @@
 export class MouseTracker {
-   private prevPos: Float32Array = new Float32Array([0.0, 0.0]);
+   // private prevPos: Float32Array = new Float32Array([0.0, 0.0]);
    private pos: Float32Array = new Float32Array([0.0, 0.0]);
    private mouseEventCleanup: (() => void)[] = [];
    // private startTime: number = Date.now();
    private scrollValue: number = 2000.0;
-   private settings: Float32Array = new Float32Array(4);
+   private settings: Float32Array = new Float32Array([30, 10, 10, 0.5]);
    private resolution: Float32Array = new Float32Array(2);
    // private dt: number = 0;
 
@@ -17,12 +17,6 @@ export class MouseTracker {
       const handleMove = (event: MouseEvent) => {
          // this.dt = Date.now() - this.startTime;
          // this.startTime = Date.now();
-
-         if (this.prevPos[0] == 0.0) {
-            this.prevPos = new Float32Array([event.clientX, event.clientY]);
-            this.pos = new Float32Array([event.clientX, event.clientY]);
-            return;
-         }
 
          [this.pos[0], this.pos[1]] = [event.clientX, event.clientY];
          // let dp = this.pos.map((n, i) => n - this.prevPos[i]);
@@ -50,7 +44,6 @@ export class MouseTracker {
    getSettings(): Float32Array {
       this.pos.forEach((n, i) => this.settings[i] = n / this.resolution[i] * 40)
       this.settings[2] = clamp(this.scrollValue / 100, 0, 40);
-      this.settings[3] = 0.5;
       return this.settings;
    }
 

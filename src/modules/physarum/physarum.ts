@@ -8,7 +8,7 @@ export class PhysarumSimulation {
    private animationId: number | null = null;
    private mouseTracker: MouseTracker = new MouseTracker();
    private resourceManager = new GPUResourceManager();
-   private numParticles: number = 1024000 / 2;
+   private numParticles: number = 1024000 * 1.5;
    private settingsData: [Float32Array, Float32Array];
    private startTime: number = Date.now();
 
@@ -263,12 +263,8 @@ export class PhysarumSimulation {
    }
 
    private createSettingsData(): [Float32Array, Float32Array] {
-      var settings = new Float32Array(4);
+      var settings = new Float32Array(4).fill(0);
       var time = new Float32Array(4).fill(0);
-      settings[0] = 10.0 * Math.PI / 180;
-      settings[1] = 10.0 * Math.PI / 180;
-      settings[2] = 40.0;
-      settings[3] = 0.5;
 
       return [settings, time];
    }
