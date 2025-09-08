@@ -2,9 +2,10 @@ import { HomeSimulation } from './modules/home/home';
 import { PhysarumSimulation } from './modules/physarum/physarum';
 import { DiffusionSimulation } from './modules/diffusion/diffusion';
 import { WaveSimulation } from './modules/waves/waves';
+import { RayMarcherSimulation } from './modules/rays/rayMarcher';
 
 class PortfolioApp {
-   private currentSimulation: HomeSimulation | WaveSimulation | PhysarumSimulation | DiffusionSimulation | null = null;
+   private currentSimulation: HomeSimulation | WaveSimulation | PhysarumSimulation | DiffusionSimulation | RayMarcherSimulation | null = null;
    private navLinks: NodeListOf<HTMLElement>;
    private pages: NodeListOf<HTMLElement>;
    private navbar: HTMLElement | null;
@@ -79,6 +80,7 @@ class PortfolioApp {
    }
 
    private async initSimulation(targetPage: string): Promise<void> {
+      console.log(targetPage);
       try {
          switch (targetPage) {
             case 'home':
@@ -97,13 +99,15 @@ class PortfolioApp {
                this.currentSimulation = new WaveSimulation();
                await this.currentSimulation.init();
                break;
+            case 'ray':
+               this.currentSimulation = new RayMarcherSimulation();
+               await this.currentSimulation.init();
+               break;
          }
       } catch (error) {
          console.error(`Failed to initialize ${targetPage} simulation:`, error);
       }
    }
-
-   // ... (other methods)
 }
 
 // Initialize app when DOM is ready

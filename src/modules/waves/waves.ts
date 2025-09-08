@@ -1,6 +1,6 @@
 import { WebGPUUtils } from '@/utils/webgpu-utils';
 import { WaveBuffers } from '@/types/webgpu';
-import { waveComputeShader, waveVertexShader, waveFragmentShader } from './waveShaders';
+import { ShaderLoader } from '@/utils/shader-loader';
 import { GPUResourceManager } from '@/utils/gpu-resource-manager';
 
 export class WaveSimulation {
@@ -21,21 +21,32 @@ export class WaveSimulation {
 
       const { device, context, canvasFormat } = webgpu;
 
+      const replacements = {
+         'RESOLUTION_HEIGHT': canvas.height,
+         'RESOLUTION_WIDTH': canvas.width,
+      };
+
+      const [computeShaderCode, vertexShaderCode, fragmentShaderCode] = await Promise.all([
+         ShaderLoader.loadShader('waves/compute', replacements),
+         ShaderLoader.loadShader('waves/vertex'),
+         ShaderLoader.loadShader('waves/fragment', replacements),
+      ])
+
       const computeShaderModule = WebGPUUtils.createShaderModule(
          device,
-         waveComputeShader(),
+         computeShaderCode,
          'waveCompute'
       );
 
       const vertexShaderModule = WebGPUUtils.createShaderModule(
          device,
-         waveVertexShader(),
+         vertexShaderCode,
          'waveVertex'
       );
 
       const fragmentShaderModule = WebGPUUtils.createShaderModule(
          device,
-         waveFragmentShader(),
+         fragmentShaderCode,
          'waveFragment'
       );
 
@@ -122,7 +133,7 @@ export class WaveSimulation {
          const computePass = commandEncoder.beginComputePass();
          computePass.setPipeline(computePipeline);
          computePass.setBindGroup(0, computeBindGroup);
-         computePass.dispatchWorkgroups(Math.ceil(canvas.width / 16), Math.ceil(canvas.height / 4));
+         computePass.dispatchWorkgroups(Math.ceil(canvas.width / 8), Math.ceil(canvas.height / 8));
          computePass.end();
 
          const renderPassDescriptor: GPURenderPassDescriptor = {

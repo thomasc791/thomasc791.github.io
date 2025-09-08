@@ -29,6 +29,6 @@
 
     "types": ["@webgpu/types"]
   },
-  "include": ["src/**/*.ts", "src/**/*.d.ts", "vite.config.ts"],
+  "include": ["src/**/*.ts", "src/**/*.d.ts", "vite.config.ts", "src/**/*.wgsl"],
   "exclude": ["node_modules", "dist"]
 }

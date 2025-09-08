@@ -8,8 +8,8 @@ export class PhysarumSimulation {
    private animationId: number | null = null;
    private mouseTracker: MouseTracker = new MouseTracker();
    private resourceManager = new GPUResourceManager();
-   private numParticles: number = 1024000 * 1.5;
-   private settingsData: [Float32Array, Float32Array];
+   private numParticles: number = 1024000 / 4;
+   private settingsData: [Float32Array, Float32Array, Float32Array];
    private startTime: number = Date.now();
 
    public constructor() {
@@ -183,13 +183,13 @@ export class PhysarumSimulation {
 
    private updateSettings(device: GPUDevice, settingsBuffer: SettingsBuffers): void {
       let settings = this.mouseTracker.getSettings();
+      settings[0] *= Math.PI / 180;
+      settings[1] *= Math.PI / 180;
 
       settings.forEach((v, i) => {
          this.settingsData[0][i] = v;
       });
       this.settingsData[1][0] = (Date.now() - this.startTime) / 1000;
-
-      console.log(this.settingsData[0]);
 
       device.queue.writeBuffer(settingsBuffer.settings, 0, new Float32Array(this.settingsData[0]));
       device.queue.writeBuffer(settingsBuffer.time, 0, new Float32Array(this.settingsData[1]));
@@ -262,11 +262,12 @@ export class PhysarumSimulation {
       return [new Float32Array(particlePositionData.flat()), new Float32Array(particleDirectionData)];
    }
 
-   private createSettingsData(): [Float32Array, Float32Array] {
+   private createSettingsData(): [Float32Array, Float32Array, Float32Array] {
       var settings = new Float32Array(4).fill(0);
       var time = new Float32Array(4).fill(0);
+      var resolution = new Float32Array([window.innerWidth, window.innerHeight]);
 
-      return [settings, time];
+      return [settings, time, resolution];
    }
 
    private initDiffusionArrays(device: GPUDevice, arrayData: BufferSource, width: number, height: number): DiffusionBuffers {
@@ -313,7 +314,7 @@ export class PhysarumSimulation {
       return buffers;
    }
 
-   private initSettingsData(device: GPUDevice, arrayData: [Float32Array, Float32Array]): SettingsBuffers {
+   private initSettingsData(device: GPUDevice, arrayData: [Float32Array, Float32Array, Float32Array]): SettingsBuffers {
       const createBuffer = (label: string) => {
          const buffer = device.createBuffer({
             size: 4 * 4,
@@ -326,6 +327,7 @@ export class PhysarumSimulation {
       const buffers: SettingsBuffers = {
          settings: createBuffer('settingsData'),
          time: createBuffer('time'),
+         resolution: createBuffer('resolution'),
       };
 
       Object.values(buffers).forEach((buffer, index) => {
