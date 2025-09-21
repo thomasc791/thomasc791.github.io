@@ -9,7 +9,7 @@ export class RayMarcherSimulation {
    private mouseTracker: MouseTracker = new MouseTracker();
    private resourceManager = new GPUResourceManager();
    private settingsData: [Float32Array, Float32Array, Float32Array];
-   private startTime: number = Date.now();
+   // private startTime: number = Date.now();
 
    public constructor() {
       this.settingsData = this.createSettingsData();
@@ -34,17 +34,17 @@ export class RayMarcherSimulation {
          'RESOLUTION_HEIGHT': canvas.height,
       };
 
-      const [computeShaderCode, vertexShaderCode, fragmentShaderCode] = await Promise.all([
+      const [_computeShaderCode, vertexShaderCode, fragmentShaderCode] = await Promise.all([
          ShaderLoader.loadShader('rays/compute', replacements),
          ShaderLoader.loadShader('rays/vertex'),
          ShaderLoader.loadShader('rays/fragment', replacements),
       ])
 
-      const rayMarcherShaderModule = WebGPUUtils.createShaderModule(
-         device,
-         computeShaderCode,
-         'rayMarcher'
-      );
+      // const rayMarcherShaderModule = WebGPUUtils.createShaderModule(
+      //    device,
+      //    computeShaderCode,
+      //    'rayMarcher'
+      // );
 
       const vertexShaderModule = WebGPUUtils.createShaderModule(
          device,
@@ -58,25 +58,25 @@ export class RayMarcherSimulation {
          'rayMarcherFragment'
       );
 
-      const rayMarcherBindGroupLayout = device.createBindGroupLayout({
-         entries: [
-            {
-               binding: 0,
-               visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
-               buffer: {
-                  type: "storage",
-               },
-            },
-            {
-               binding: 1,
-               visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
-               buffer: {
-                  type: "storage",
-               },
-            },
-         ],
-         label: 'ParticleBindGroupLayout'
-      });
+      // const rayMarcherBindGroupLayout = device.createBindGroupLayout({
+      //    entries: [
+      //       {
+      //          binding: 0,
+      //          visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
+      //          buffer: {
+      //             type: "storage",
+      //          },
+      //       },
+      //       {
+      //          binding: 1,
+      //          visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
+      //          buffer: {
+      //             type: "storage",
+      //          },
+      //       },
+      //    ],
+      //    label: 'ParticleBindGroupLayout'
+      // });
 
       const settingsBindGroupLayout = device.createBindGroupLayout({
          entries: [
@@ -112,14 +112,14 @@ export class RayMarcherSimulation {
          label: 'PipelineLayout'
       });
 
-      const rayMarcherPipeline = device.createComputePipeline({
-         label: 'rayMarcherPipeline',
-         layout: pipelineLayout,
-         compute: {
-            module: rayMarcherShaderModule,
-            entryPoint: 'cs',
-         },
-      });
+      // const rayMarcherPipeline = device.createComputePipeline({
+      //    label: 'rayMarcherPipeline',
+      //    layout: pipelineLayout,
+      //    compute: {
+      //       module: rayMarcherShaderModule,
+      //       entryPoint: 'cs',
+      //    },
+      // });
 
       const renderPipeline = device.createRenderPipeline({
          label: 'rayMarcherRenderPipeline',
@@ -159,19 +159,19 @@ export class RayMarcherSimulation {
       this.startRenderLoop(device, context, renderPipeline, settingsBindGroup, settingsBuffers, canvas);
    }
 
-   private updateSettings(device: GPUDevice, settingsBuffer: SettingsBuffers): void {
-      let settings = this.mouseTracker.getSettings();
+   // private updateSettings(device: GPUDevice, settingsBuffer: SettingsBuffers): void {
+   //    let settings = this.mouseTracker.getSettings();
+   //
+   //    settings.forEach((v, i) => {
+   //       this.settingsData[0][i] = v;
+   //    });
+   //    this.settingsData[1][0] = (Date.now() - this.startTime) / 1000;
+   //
+   //    device.queue.writeBuffer(settingsBuffer.settings, 0, new Float32Array(this.settingsData[0]));
+   //    device.queue.writeBuffer(settingsBuffer.time, 0, new Float32Array(this.settingsData[1]));
+   // }
 
-      settings.forEach((v, i) => {
-         this.settingsData[0][i] = v;
-      });
-      this.settingsData[1][0] = (Date.now() - this.startTime) / 1000;
-
-      device.queue.writeBuffer(settingsBuffer.settings, 0, new Float32Array(this.settingsData[0]));
-      device.queue.writeBuffer(settingsBuffer.time, 0, new Float32Array(this.settingsData[1]));
-   }
-
-   private startRenderLoop(device: GPUDevice, context: GPUCanvasContext, renderPipeline: GPURenderPipeline, settingsBindGroup: GPUBindGroup, settingsBuffer: SettingsBuffers, canvas: HTMLCanvasElement) {
+   private startRenderLoop(device: GPUDevice, context: GPUCanvasContext, renderPipeline: GPURenderPipeline, settingsBindGroup: GPUBindGroup, _settingsBuffer: SettingsBuffers, _canvas: HTMLCanvasElement) {
 
       const render = () => {
          const commandEncoder = device.createCommandEncoder();

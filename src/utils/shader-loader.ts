@@ -4,6 +4,10 @@ import raysFragmentShaderCode from '/shaders/rays/fragmentShader.wgsl?raw'
 import wavesComputeShaderCode from '/shaders/waves/computeShader.wgsl?raw'
 import wavesVertexShaderCode from '/shaders/waves/vertexShader.wgsl?raw'
 import wavesFragmentShaderCode from '/shaders/waves/fragmentShader.wgsl?raw'
+import physarumMovementShader from '/shaders/physarum/movementShader.wgsl?raw'
+import physarumDiffusionShader from '/shaders/physarum/diffusionShader.wgsl?raw'
+import physarumVertexShader from '/shaders/physarum/vertexShader.wgsl?raw'
+import physarumFragmentShader from '/shaders/physarum/fragmentShader.wgsl?raw'
 
 const shaderDict: Record<string, string> = {
    'rays/compute': raysComputeShaderCode,
@@ -12,6 +16,10 @@ const shaderDict: Record<string, string> = {
    'waves/compute': wavesComputeShaderCode,
    'waves/vertex': wavesVertexShaderCode,
    'waves/fragment': wavesFragmentShaderCode,
+   'physarum/movement': physarumMovementShader,
+   'physarum/diffuse': physarumDiffusionShader,
+   'physarum/vertex': physarumVertexShader,
+   'physarum/fragment': physarumFragmentShader,
 };
 
 export class ShaderLoader {

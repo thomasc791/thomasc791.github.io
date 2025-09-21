@@ -1,6 +1,6 @@
 import { WebGPUUtils } from '../../utils/webgpu-utils';
 import { DiffusionBuffers, PhysarumBuffers, SettingsBuffers } from '../../types/webgpu';
-import { physarumMovementShader, physarumDiffusionShader, physarumVertexShader, physarumFragmentShader } from './physarumShaders';
+import { ShaderLoader } from '@/utils/shader-loader';
 import { GPUResourceManager } from '@/utils/gpu-resource-manager';
 import { MouseTracker } from '@/utils/mouse-tracker';
 
@@ -8,7 +8,7 @@ export class PhysarumSimulation {
    private animationId: number | null = null;
    private mouseTracker: MouseTracker = new MouseTracker();
    private resourceManager = new GPUResourceManager();
-   private numParticles: number = 1024000 / 4;
+   private numParticles: number = 1024000 / 2;
    private settingsData: [Float32Array, Float32Array, Float32Array];
    private startTime: number = Date.now();
 
@@ -30,27 +30,40 @@ export class PhysarumSimulation {
 
       const { device, context, canvasFormat } = webgpu;
 
+      const replacements = {
+         'RESOLUTION_HEIGHT': canvas.height,
+         'RESOLUTION_WIDTH': canvas.width,
+         'NUM_PARTICLES': this.numParticles,
+      };
+
+      const [movementShaderCode, diffusionShaderCode, vertexShaderCode, fragmentShaderCode] = await Promise.all([
+         ShaderLoader.loadShader('physarum/movement', replacements),
+         ShaderLoader.loadShader('physarum/diffuse', replacements),
+         ShaderLoader.loadShader('physarum/vertex', replacements),
+         ShaderLoader.loadShader('physarum/fragment', replacements),
+      ])
+
       const movementShaderModule = WebGPUUtils.createShaderModule(
          device,
-         physarumMovementShader(this.numParticles),
+         movementShaderCode,
          'PhysarumMovement'
       );
 
       const diffusionShaderModule = WebGPUUtils.createShaderModule(
          device,
-         physarumDiffusionShader(),
+         diffusionShaderCode,
          'PhysarumDiffusion'
       );
 
       const vertexShaderModule = WebGPUUtils.createShaderModule(
          device,
-         physarumVertexShader(),
+         vertexShaderCode,
          'PhysarumVertex'
       );
 
       const fragmentShaderModule = WebGPUUtils.createShaderModule(
          device,
-         physarumFragmentShader(),
+         fragmentShaderCode,
          'PhysarumFragment'
       );
 

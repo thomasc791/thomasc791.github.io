@@ -1,10 +1,8 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
-import { wgslPlugin } from './vite-plugin-wgsl.ts'
 
 export default defineConfig({
    root: 'public',
-   plugins: [wgslPlugin()],
    build: {
       outDir: '../dist',
       emptyOutDir: true,
